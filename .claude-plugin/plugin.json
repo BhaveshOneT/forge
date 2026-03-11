@@ -1,6 +1,6 @@
 {
   "name": "forge",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Dynamic agent orchestrator with prompt and Jira execution modes, adaptive tier routing, and Forge Studio terminal IDE workspace.",
   "hooks": "./hooks/hooks.json",
   "author": {

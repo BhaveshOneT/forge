@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.2 — 2026-03-11
+
+### Fixed
+- Forge Studio git pane now re-resolves the workspace path instead of getting stuck on a stale non-repository `project_dir`
+- Git pane prefers the active worktree and launches `lazygit` as soon as a valid git root is available
+- README now documents how to manually attach to Forge Studio with `tmux attach -t ...`
+
 ## 1.4.1 — 2026-03-11
 
 ### Fixed

@@ -381,6 +381,26 @@ Prompt mode emphasizes the user request, requirements, checkpoint, and implement
 
 If Forge is started from a non-interactive subprocess without a real TTY, Studio still creates the tmux session and renders into it, but it stays detached instead of trying to attach and failing. In that case Forge prints the manual attach command, for example `tmux attach -t forge-<session-id>`.
 
+### Attaching To Forge Studio
+
+If the Studio UI does not appear automatically, attach to the tmux session from a real terminal:
+
+```bash
+tmux attach -t forge-<session-id>
+```
+
+Example:
+
+```bash
+tmux attach -t forge-forge-20260311-222702
+```
+
+You can list active Forge Studio sessions with:
+
+```bash
+tmux ls | grep forge-
+```
+
 ## Compaction Resilience
 
 Forge survives Claude Code context compaction:

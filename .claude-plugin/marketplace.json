@@ -11,7 +11,7 @@
         "repo": "BhaveshOneT/forge"
       },
       "description": "Dynamic agent orchestrator with prompt and Jira execution modes, adaptive tier routing, structured context, and Forge Studio terminal IDE workspace",
-      "version": "1.4.1"
+      "version": "1.4.2"
     }
   ]
 }

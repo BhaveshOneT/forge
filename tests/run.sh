@@ -356,14 +356,15 @@ run_studio_dependency_tests() {
 }
 
 run_studio_runtime_tests() {
-  local tmp_root fake_bin repo_dir session_dir jira_session_dir state_file jira_state_file session_name other_session render_output popup_path help_output jira_render_output jira_help_output attach_output
+  local tmp_root fake_bin repo_dir repo_dir_real session_dir gitpane_session_dir jira_session_dir state_file gitpane_state_file jira_state_file session_name other_session render_output popup_path help_output jira_render_output jira_help_output attach_output
   tmp_root="$(mktemp -d)"
   trap 'rm -rf "$tmp_root"' RETURN
   fake_bin="$tmp_root/bin"
   repo_dir="$tmp_root/repo"
   session_dir="$tmp_root/session"
+  gitpane_session_dir="$tmp_root/gitpane-session"
   jira_session_dir="$tmp_root/jira-session"
-  mkdir -p "$fake_bin" "$repo_dir" "$session_dir/context" "$session_dir/contracts" "$jira_session_dir/context" "$jira_session_dir/contracts"
+  mkdir -p "$fake_bin" "$repo_dir" "$session_dir/context" "$session_dir/contracts" "$gitpane_session_dir/context" "$gitpane_session_dir/contracts" "$jira_session_dir/context" "$jira_session_dir/contracts"
 
   ln -s "$(command -v tmux)" "$fake_bin/tmux"
   cat >"$fake_bin/lazygit" <<'EOF'
@@ -379,6 +380,7 @@ EOF
   printf 'hi\n' >"$repo_dir/README.md"
   git -C "$repo_dir" add README.md
   git -C "$repo_dir" commit -m "init" >/dev/null
+  repo_dir_real="$(git -C "$repo_dir" rev-parse --show-toplevel)"
 
   state_file="$session_dir/forge-state.json"
   write_state "$state_file" "forge-20260311-150000" "build" "studio"
@@ -503,6 +505,12 @@ EOF
   assert_contains "$attach_output" "Forge Studio session created detached: $session_name"
   assert_contains "$attach_output" "tmux attach -t $session_name"
 
+  gitpane_state_file="$gitpane_session_dir/forge-state.json"
+  write_state "$gitpane_state_file" "forge-20260311-155500" "build" "git pane"
+  set_state_field "$gitpane_state_file" $'data["project_dir"] = "/Users/bhaveshy"\ndata["worktree_path"] = "'"$repo_dir"$'"'
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-git-pane.sh" "$gitpane_session_dir" >/dev/null 2>&1
+  assert_file_contains "$FORGE_STUDIO_TEST_LOG" "fake lazygit $repo_dir_real"
+
   jira_state_file="$jira_session_dir/forge-state.json"
   write_state "$jira_state_file" "forge-20260311-160000" "ship" "jira studio"
   set_state_field "$jira_state_file" $'data["execution_mode"] = "jira"\ndata["source"] = "jira"\ndata["tier"] = 2\ndata["project_type"] = "brownfield"\ndata["project_dir"] = "'"$repo_dir"$'"\ndata["user_request"] = "Ship jira issue"\ndata["jira_issue_key"] = "PROJ-123"\ndata["ship_result"] = {"pr_url": "https://example.com/pr/123"}'
@@ -553,6 +561,7 @@ EOF
 
   PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_studio_mode_for_tier 1)" = "focus" ] && [ "$(forge_studio_mode_for_tier 2)" = "build" ] && [ "$(forge_studio_mode_for_tier 3)" = "swarm" ]'
   PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_resolve_workspace_dir "" "'"$session_dir"'")" = "'"$session_dir"'" ]'
+  PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_find_git_root "'"$repo_dir"'")" = "'"$repo_dir_real"'" ]'
   PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_execution_mode_from_state "'"$state_file"'")" = "prompt" ]'
   PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_execution_mode_from_state "'"$jira_state_file"'")" = "jira" ]'
 
@@ -564,8 +573,8 @@ EOF
 }
 
 run_metadata_tests() {
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.4.1"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.4.1"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.4.2"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.4.2"'
   assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
   assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
   assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'

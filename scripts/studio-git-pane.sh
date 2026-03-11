@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/lib/forge-common.sh"
 
 SESSION_DIR="${1:?Usage: studio-git-pane.sh <session-dir>}"
 STATE_FILE="$SESSION_DIR/forge-state.json"
+LAYOUT_FILE="$SESSION_DIR/studio-layout.json"
 
 if [ ! -f "$STATE_FILE" ]; then
   printf 'Forge Studio git pane\n\nWaiting for forge-state.json...\n'
@@ -15,14 +16,39 @@ if [ ! -f "$STATE_FILE" ]; then
   exit 0
 fi
 
-PROJECT_DIR="$(forge_json_get "$STATE_FILE" "data.get('project_dir', '')")"
+resolve_git_workspace() {
+  local worktree_path=""
+  local project_dir=""
+  local layout_project_dir=""
+  local candidate=""
+  local repo_root=""
 
-if [ -n "$PROJECT_DIR" ] && git -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  cd "$PROJECT_DIR"
-  exec lazygit
-fi
+  worktree_path="$(forge_json_get "$STATE_FILE" "data.get('worktree_path', '')" 2>/dev/null || true)"
+  project_dir="$(forge_json_get "$STATE_FILE" "data.get('project_dir', '')" 2>/dev/null || true)"
+  if [ -f "$LAYOUT_FILE" ]; then
+    layout_project_dir="$(forge_json_get "$LAYOUT_FILE" "data.get('project_dir', '')" 2>/dev/null || true)"
+  fi
+
+  for candidate in "$worktree_path" "$project_dir" "$layout_project_dir"; do
+    if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+      if repo_root="$(forge_find_git_root "$candidate" 2>/dev/null)"; then
+        printf '%s\n' "$repo_root"
+        return 0
+      fi
+    fi
+  done
+
+  return 1
+}
 
 while true; do
+  if GIT_WORKSPACE="$(resolve_git_workspace 2>/dev/null)"; then
+    cd "$GIT_WORKSPACE"
+    exec lazygit
+  fi
+
+  PROJECT_DIR="$(forge_json_get "$STATE_FILE" "data.get('project_dir', '')" 2>/dev/null || true)"
+  WORKTREE_PATH="$(forge_json_get "$STATE_FILE" "data.get('worktree_path', '')" 2>/dev/null || true)"
   clear
   cat <<EOF
 Forge Studio Git Pane
@@ -31,6 +57,9 @@ Forge Studio Git Pane
 Git view unavailable.
 Current project directory is not a git repository:
 ${PROJECT_DIR:-"(unset)"}
+
+Worktree path:
+${WORKTREE_PATH:-"(unset)"}
 
 This pane remains reserved for git/navigation.
 EOF

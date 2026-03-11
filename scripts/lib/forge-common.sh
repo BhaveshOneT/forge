@@ -240,3 +240,17 @@ forge_escape_shell_arg() {
 forge_has_tty() {
   [ -t 0 ] && [ -t 1 ]
 }
+
+forge_find_git_root() {
+  local path="${1:-}"
+
+  while [ -n "$path" ] && [ "$path" != "/" ]; do
+    if git -C "$path" rev-parse --show-toplevel >/dev/null 2>&1; then
+      git -C "$path" rev-parse --show-toplevel
+      return 0
+    fi
+    path="$(dirname "$path")"
+  done
+
+  return 1
+}
