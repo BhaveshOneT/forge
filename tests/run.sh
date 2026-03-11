@@ -356,7 +356,7 @@ run_studio_dependency_tests() {
 }
 
 run_studio_runtime_tests() {
-  local tmp_root fake_bin repo_dir session_dir jira_session_dir state_file jira_state_file session_name other_session render_output popup_path help_output jira_render_output jira_help_output
+  local tmp_root fake_bin repo_dir session_dir jira_session_dir state_file jira_state_file session_name other_session render_output popup_path help_output jira_render_output jira_help_output attach_output
   tmp_root="$(mktemp -d)"
   trap 'rm -rf "$tmp_root"' RETURN
   fake_bin="$tmp_root/bin"
@@ -499,6 +499,9 @@ EOF
   render_output="$(bash "$ROOT_DIR/scripts/tmux-render.sh" "$session_dir")"
   assert_contains "$render_output" "Forge Studio"
   assert_contains "$render_output" "entry=prompt layout=build status=active"
+  attach_output="$(PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-session.sh" attach "$session_dir")"
+  assert_contains "$attach_output" "Forge Studio session created detached: $session_name"
+  assert_contains "$attach_output" "tmux attach -t $session_name"
 
   jira_state_file="$jira_session_dir/forge-state.json"
   write_state "$jira_state_file" "forge-20260311-160000" "ship" "jira studio"
@@ -561,8 +564,8 @@ EOF
 }
 
 run_metadata_tests() {
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.4.0"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.4.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.4.1"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.4.1"'
   assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
   assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
   assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'

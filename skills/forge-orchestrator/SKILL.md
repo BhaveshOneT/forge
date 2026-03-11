@@ -217,6 +217,7 @@ Forge Studio is the default terminal workspace for every run.
 - `bash scripts/studio-popup.sh open <session-dir> <target>` opens read-only popups for session artifacts
 - Studio persists after completion; it is not auto-destroyed during COMPOUND
 - Studio is aware of both `execution_mode` (`prompt` or `jira`) and the tier-derived layout mode
+- In non-TTY subprocess environments, Studio is created detached and the runtime prints the manual `tmux attach -t ...` command instead of failing
 
 ## Safety Limits
 

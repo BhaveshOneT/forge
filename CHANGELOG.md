@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1 — 2026-03-11
+
+### Fixed
+- Forge Studio no longer fails in non-interactive subprocess environments when `tmux attach` cannot use a real TTY
+- Studio now creates the tmux session detached and prints a manual attach command instead of surfacing a terminal error
+
 ## 1.4.0 — 2026-03-11
 
 ### Added

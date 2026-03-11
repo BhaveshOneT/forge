@@ -236,3 +236,7 @@ forge_tmux_set_option() {
 forge_escape_shell_arg() {
   printf '%q' "${1:-}"
 }
+
+forge_has_tty() {
+  [ -t 0 ] && [ -t 1 ]
+}

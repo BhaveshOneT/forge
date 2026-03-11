@@ -379,6 +379,8 @@ The workspace persists after completion so you can review changes, logs, and art
 
 Prompt mode emphasizes the user request, requirements, checkpoint, and implementation artifacts. Jira mode emphasizes issue context, Confluence enrichment, shipping state, and the extended Jira pipeline.
 
+If Forge is started from a non-interactive subprocess without a real TTY, Studio still creates the tmux session and renders into it, but it stays detached instead of trying to attach and failing. In that case Forge prints the manual attach command, for example `tmux attach -t forge-<session-id>`.
+
 ## Compaction Resilience
 
 Forge survives Claude Code context compaction:

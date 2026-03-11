@@ -64,8 +64,11 @@ case "$COMMAND" in
     SESSION_NAME="$(resolve_session_name "$SESSION_DIR")"
     if [ -n "${TMUX:-}" ]; then
       tmux switch-client -t "$SESSION_NAME"
-    else
+    elif forge_has_tty; then
       tmux attach-session -t "$SESSION_NAME"
+    else
+      printf 'Forge Studio session created detached: %s\n' "$SESSION_NAME"
+      printf 'Attach manually from a real terminal: tmux attach -t %s\n' "$SESSION_NAME"
     fi
     ;;
   focus)

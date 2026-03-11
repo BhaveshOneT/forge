@@ -83,6 +83,10 @@ Studio is mode-aware:
 - `prompt` sessions emphasize requirements, plan, exploration, decisions, and loop learnings
 - `jira` sessions emphasize Jira context, Confluence context, shipping, PR state, and the extended Jira pipeline
 
+Attach behavior:
+- if Forge is running inside a real terminal, `tmux-setup.sh` attaches or switches to the Studio session
+- if Forge is running in a non-TTY subprocess, the Studio session is created detached and Forge prints a manual `tmux attach -t ...` command instead of failing
+
 Popup targets:
 - prompt oriented: `requirements`, `plan`, `issues`, `decisions`, `learnings`, `exploration`, `verify`
 - jira oriented: `jira-context`, `confluence`, `ship`
