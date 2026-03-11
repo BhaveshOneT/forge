@@ -355,17 +355,6 @@ The runtime safety story is deliberately small and mechanical:
 | Loop-learnings inheritance | Fewer iterations needed |
 | 4 agents instead of 9 | ~30% less prompt overhead |
 
-## Comparison with Knight Manager
-
-| Dimension | Knight Manager | Forge |
-|-----------|---------------|-------|
-| Agents | 9 (always all) | 4 (only when needed) |
-| Phases | 10 (fixed) | 3-8 (adaptive) |
-| User gates | Plan approval required | Full autonomy after grilling |
-| Context | shared-notes.md (freeform) | Structured artifacts (decisions, patterns, learnings) |
-| TMUX | Single column | Two-column with agent status |
-| Token range | ~200-300k always | ~5k-300k depending on tier |
-
 ## License
 
 MIT
