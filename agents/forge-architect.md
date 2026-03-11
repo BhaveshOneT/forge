@@ -79,3 +79,4 @@ Create TypeScript/Python/etc type files that define shared interfaces between co
 - Follow patterns discovered by Explorer (in context/patterns.md)
 - If backtracking: revise ONLY the section identified in the diagnostic
 - `plan.md` must include at least one real URL under `## Research Citations`
+- If the Manager gives you an `agent_id`, keep Forge Studio updated with concise progress notes using `bash scripts/studio-agents.sh note <session-dir> <agent-id> "<message>"`

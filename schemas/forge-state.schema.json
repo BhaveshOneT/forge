@@ -170,10 +170,32 @@
         "type": "object",
         "required": ["name", "status"],
         "properties": {
+          "id": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
+          "role": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["subagent", "team"]
+          },
           "status": {
+            "type": "string"
+          },
+          "task": {
+            "type": "string"
+          },
+          "log_file": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "finished_at": {
             "type": "string"
           }
         }

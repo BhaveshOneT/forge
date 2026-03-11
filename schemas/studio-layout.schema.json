@@ -40,6 +40,28 @@
           "minLength": 1
         }
       }
+    },
+    "agent_panes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["agent_id", "pane_id", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "agent_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pane_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   }
 }

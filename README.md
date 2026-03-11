@@ -338,9 +338,9 @@ Tier 3 layout:
 
 ```text
 +--------------------------------------------------------------+
-| Claude / multi-agent orchestration                           |
+| Claude / multi-agent orchestration   | lazygit + agent panes |
 +--------------------------------------+-----------------------+
-| swarm status + agents + verify       | lazygit               |
+| swarm status + verify + activity     | explorer / reviewer   |
 +--------------------------------------+-----------------------+
 ```
 
@@ -378,6 +378,7 @@ Status pane example:
 The workspace persists after completion so you can review changes, logs, and artifacts before closing it.
 
 Prompt mode emphasizes the user request, requirements, checkpoint, and implementation artifacts. Jira mode emphasizes issue context, Confluence enrichment, shipping state, and the extended Jira pipeline.
+Build mode can surface the current active subagent. Swarm mode now creates separate panes for active agents based on the `active_agents` session state and per-agent logs under `session_dir/agents/`.
 
 If Forge is started from a non-interactive subprocess without a real TTY, Studio still creates the tmux session and renders into it, but it stays detached instead of trying to attach and failing. In that case Forge prints the manual attach command, for example `tmux attach -t forge-<session-id>`.
 

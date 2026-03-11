@@ -66,6 +66,7 @@ Forge Studio is the default tmux workspace for every tier.
 dependencies -> studio-check-deps.sh
 session      -> tmux-setup.sh / studio-session.sh
 layout       -> studio-layout.sh
+agents       -> studio-agents.sh / studio-agent-pane.sh
 status pane  -> tmux-render.sh + studio-activity.sh
 popups       -> studio-popup.sh
 cleanup      -> tmux-teardown.sh
@@ -82,6 +83,11 @@ There is no degraded non-Studio mode.
 Studio is mode-aware:
 - `prompt` sessions emphasize requirements, plan, exploration, decisions, and loop learnings
 - `jira` sessions emphasize Jira context, Confluence context, shipping, PR state, and the extended Jira pipeline
+
+Studio is also agent-aware:
+- build mode can surface the current active subagent in its own pane
+- swarm mode creates separate panes for active agents from `active_agents`
+- each agent pane tails `session_dir/agents/<agent-id>.log`
 
 Attach behavior:
 - if Forge is running inside a real terminal, `tmux-setup.sh` attaches or switches to the Studio session
@@ -158,6 +164,11 @@ Write patterns to: {session_dir}/context/patterns.md
 ### Tier 3 — Parallel Explorers
 Launch 2 explorers concurrently via `Agent` tool:
 
+Before dispatch:
+- register `explorer-a` and `explorer-b` with `bash scripts/studio-agents.sh register ...`
+- include the agent id and log path in the prompt
+- tell the agent to append progress notes with `bash scripts/studio-agents.sh note ...`
+
 **Explorer A — Architecture & Patterns**:
 ```
 Read your instructions at: {plugin_dir}/agents/forge-explorer.md
@@ -183,7 +194,7 @@ Focus: files to modify, similar features as templates, shared utilities, test st
 Write output to: {session_dir}/exploration-code.md
 ```
 
-**After both complete**: Manager merges into `exploration.md`.
+**After both complete**: Manager merges into `exploration.md` and marks both agents complete with `bash scripts/studio-agents.sh complete ...`.
 
 **Gate**: `exploration.md` exists with sections: conventions, patterns, relevant files, test approach. `context/patterns.md` populated.
 
@@ -282,6 +293,11 @@ Write issues to: {session_dir}/review-issues.json
 
 ### Tier 3 — Parallel Reviewers
 
+Before dispatch:
+- register both reviewer agents with `bash scripts/studio-agents.sh register ...`
+- include the agent id and log path in the prompt
+- tell the agent to append progress notes with `bash scripts/studio-agents.sh note ...`
+
 **Reviewer A — Bugs & Security**:
 ```
 Read your instructions at: {plugin_dir}/agents/forge-reviewer.md
@@ -310,7 +326,7 @@ Focus: plan alignment, contract compliance, missing requirements, code quality.
 Write issues to: {session_dir}/review-issues-alignment.json
 ```
 
-**After both complete**: Manager merges into `review-issues.json`, deduplicating by file+line.
+**After both complete**: Manager merges into `review-issues.json`, deduplicating by file+line, then marks both agents complete with `bash scripts/studio-agents.sh complete ...`.
 
 **Gate**: 0 critical issues. If critical → backtrack per matrix.
 

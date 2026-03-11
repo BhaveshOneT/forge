@@ -5,7 +5,7 @@ description: "Jira/Confluence integration adapter for Forge. Provides JIRA_FETCH
 
 # Jira Adapter — Integration Phases
 
-This skill defines 4 phases that wrap the core Forge pipeline when `source == "jira"`. The Manager executes these directly (no subagent) since they are I/O operations, not reasoning tasks.
+This skill defines 4 phases that wrap the core Forge pipeline when `execution_mode == "jira"` (or legacy `source == "jira"`). The Manager executes these directly (no subagent) since they are I/O operations, not reasoning tasks.
 
 **Prerequisites**:
 - Atlassian MCP server configured: `claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse`

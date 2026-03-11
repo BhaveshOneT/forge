@@ -64,6 +64,8 @@ history = {item.get("phase"): item for item in state.get("phase_history", [])}
 agents = state.get("active_agents", [])
 build_tasks = state.get("build_tasks", [])
 ship_result = state.get("ship_result", {})
+running_agents = [item for item in agents if item.get("status") not in {"complete", "failed", "cancelled"}]
+completed_agents = [item for item in agents if item.get("status") == "complete"]
 
 def fmt_phase_line(name):
     entry = history.get(name, {})
@@ -90,11 +92,25 @@ if jira_key:
 else:
     lines.append(f"│{' ':74}│")
 lines.append(f"│ Tier: {tier}  Project: {project_type:<14} Phase: {phase:<14} │")
-lines.append(f"│ Loop: {loop:<3} Backtracks: {backtracks:<3} Tokens: ~{tokens // 1000:<4}k {' ':21}│")
+lines.append(f"│ Loop: {loop:<3} Backtracks: {backtracks:<3} Tokens: ~{tokens // 1000:<4}k Agents: {len(running_agents):<2}/{len(agents):<2} {' ':10}│")
 lines.append("├" + "─" * 36 + "┬" + "─" * 37 + "┤")
-lines.append(f"│ {'PIPELINE':<34} │ {'IDE HINTS':<35} │")
+right_header = "AGENT SWARM" if running_agents else "IDE HINTS"
+lines.append(f"│ {'PIPELINE':<34} │ {right_header:<35} │")
 
 hint_lines = []
+if running_agents:
+    for agent in running_agents[:4]:
+        task = (agent.get("task") or "").strip()
+        if task:
+            hint_lines.append(f"{agent.get('name', '?')}: {task[:20]}")
+        else:
+            hint_lines.append(f"{agent.get('name', '?')}: {agent.get('status', 'idle')}")
+    if completed_agents:
+        hint_lines.append(f"completed agents: {len(completed_agents)}")
+elif build_tasks:
+    completed = sum(1 for item in build_tasks if item.get("status") == "complete")
+    hint_lines.append(f"build tasks: {completed}/{len(build_tasks)} complete")
+
 if execution_mode == "jira":
     artifact_map = [
         ("j", "jira-context.json"),
@@ -117,13 +133,6 @@ else:
     ]
 for key, label in artifact_map:
     hint_lines.append(f"prefix+{key} {label}")
-
-if tier == 3 and agents:
-    for agent in agents[:4]:
-        hint_lines.append(f"{agent.get('name', '?')}: {agent.get('status', 'idle')}")
-elif build_tasks:
-    completed = sum(1 for item in build_tasks if item.get("status") == "complete")
-    hint_lines.append(f"build tasks: {completed}/{len(build_tasks)} complete")
 
 if checkpoint:
     hint_lines.append(f"checkpoint: {checkpoint[:28]}")

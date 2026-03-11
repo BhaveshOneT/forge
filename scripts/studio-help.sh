@@ -38,6 +38,11 @@ Keybindings (tmux prefix + key)
   v  Open verify popup
   m  Toggle layout mode
   ?  Open this help popup
+
+Agent panes
+  Tier 2 can show the current subagent in build mode
+  Tier 3 swarm mode creates separate panes for active agents
+  Agent panes follow the active_agents list in forge-state.json
 EOF
 
 if [ "$EXECUTION_MODE" = "jira" ]; then

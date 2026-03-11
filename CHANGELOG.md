@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0 — 2026-03-11
+
+### Added
+- Agent-aware Forge Studio runtime with per-agent registration, progress logs, and dedicated tmux panes
+- `scripts/studio-agents.sh` for registering, updating, and completing active agents
+- `scripts/studio-agent-pane.sh` for live per-agent pane rendering in build and swarm layouts
+
+### Changed
+- Swarm mode now creates separate panes for active agents instead of showing only a static status box
+- Build mode can surface the current active subagent when the manager registers it
+- Manager and agent docs now describe how subagents should keep Forge Studio updated through agent logs
+
 ## 1.4.2 — 2026-03-11
 
 ### Fixed

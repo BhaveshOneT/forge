@@ -7,8 +7,8 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # shellcheck source=./lib/forge-common.sh
 source "$SCRIPT_DIR/lib/forge-common.sh"
 
-COMMAND="${1:?Usage: studio-layout.sh <apply|toggle> <session-dir> [mode] [project-dir]}"
-SESSION_DIR="${2:?Usage: studio-layout.sh <apply|toggle> <session-dir> [mode] [project-dir]}"
+COMMAND="${1:?Usage: studio-layout.sh <apply|refresh|toggle> <session-dir> [mode] [project-dir]}"
+SESSION_DIR="${2:?Usage: studio-layout.sh <apply|refresh|toggle> <session-dir> [mode] [project-dir]}"
 LAYOUT_FILE="$SESSION_DIR/studio-layout.json"
 STATE_FILE="$SESSION_DIR/forge-state.json"
 
@@ -34,6 +34,84 @@ start_pane_program() {
   local pane_id="${1:?pane id required}"
   local command_text="${2:?command text required}"
   tmux respawn-pane -k -t "$pane_id" "bash -lc $(printf '%q' "$command_text")"
+}
+
+active_agent_specs() {
+  local mode="${1:?mode required}"
+  python3 - "$STATE_FILE" "$mode" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    state = json.load(handle)
+
+mode = sys.argv[2]
+max_agents = 0
+if mode == "build":
+    max_agents = 1
+elif mode == "swarm":
+    max_agents = 4
+
+running = []
+for agent in state.get("active_agents", []):
+    if agent.get("status") in {"complete", "failed", "cancelled"}:
+        continue
+    running.append(agent)
+
+for agent in running[:max_agents]:
+    agent_id = (agent.get("id") or "").replace("\t", " ")
+    name = (agent.get("name") or agent_id or "agent").replace("\t", " ")
+    print(f"{agent_id}\t{name}")
+PY
+}
+
+create_agent_panes() {
+  local session_name="${1:?session name required}"
+  local mode="${2:?mode required}"
+  local workspace_dir="${3:?workspace dir required}"
+  local git_pane="${4:?git pane required}"
+  local -a agent_specs=()
+  local -a agent_panes=()
+  local current_target pane_id agent_id agent_name
+
+  while IFS= read -r line; do
+    [ -n "$line" ] && agent_specs+=("$line")
+  done < <(active_agent_specs "$mode")
+  [ "${#agent_specs[@]}" -gt 0 ] || return 0
+
+  pane_id="$(tmux split-window -P -F '#{pane_id}' -v -p 68 -t "$git_pane" -c "$workspace_dir")"
+  agent_panes+=("$pane_id")
+  current_target="$pane_id"
+
+  local idx
+  for ((idx = 1; idx < ${#agent_specs[@]}; idx++)); do
+    pane_id="$(tmux split-window -P -F '#{pane_id}' -v -p 50 -t "$current_target" -c "$workspace_dir")"
+    agent_panes+=("$pane_id")
+    current_target="$pane_id"
+  done
+
+  local agent_metadata="[]"
+  for idx in "${!agent_specs[@]}"; do
+    agent_id="${agent_specs[$idx]%%$'\t'*}"
+    agent_name="${agent_specs[$idx]#*$'\t'}"
+    tmux select-pane -t "${agent_panes[$idx]}" -T "Forge Agent: $agent_name"
+    start_pane_program "${agent_panes[$idx]}" "\"$SCRIPT_DIR/studio-agent-pane.sh\" \"$SESSION_DIR\" \"$agent_id\""
+    agent_metadata="$(python3 - "$agent_metadata" "$agent_id" "${agent_panes[$idx]}" "$agent_name" <<'PY'
+import json
+import sys
+
+items = json.loads(sys.argv[1])
+items.append({
+    "agent_id": sys.argv[2],
+    "pane_id": sys.argv[3],
+    "title": sys.argv[4],
+})
+print(json.dumps(items))
+PY
+)"
+  done
+
+  printf '%s\n' "$agent_metadata"
 }
 
 apply_layout() {
@@ -80,6 +158,7 @@ apply_layout() {
   git_pane="$(tmux split-window -P -F '#{pane_id}' -h -p "$right_percent" -t "$main_pane" -c "$workspace_dir")"
   local status_pane
   status_pane="$(tmux split-window -P -F '#{pane_id}' -v -l "$bottom_lines" -t "$main_pane" -c "$workspace_dir")"
+  local agent_metadata="[]"
 
   tmux select-pane -t "$main_pane" -T "Forge Studio: Claude"
   tmux select-pane -t "$git_pane" -T "Forge Studio: Git"
@@ -87,6 +166,8 @@ apply_layout() {
 
   start_pane_program "$git_pane" "\"$SCRIPT_DIR/studio-git-pane.sh\" \"$SESSION_DIR\""
   start_pane_program "$status_pane" "while true; do bash \"$SCRIPT_DIR/tmux-render.sh\" \"$SESSION_DIR\"; sleep 2; done"
+  agent_metadata="$(create_agent_panes "$session_name" "$mode" "$workspace_dir" "$git_pane" || true)"
+  [ -n "$agent_metadata" ] || agent_metadata="[]"
   tmux select-pane -t "$main_pane"
 
   forge_tmux_set_option "$session_name" "@forge_layout_mode" "$mode"
@@ -110,6 +191,15 @@ payload = {
         "status": sys.argv[6],
     },
 }
+print(json.dumps(payload))
+PY
+)"
+  LAYOUT_JSON="$(python3 - "$LAYOUT_JSON" "$agent_metadata" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+payload["agent_panes"] = json.loads(sys.argv[2])
 print(json.dumps(payload))
 PY
 )"
@@ -157,6 +247,11 @@ TIER="$(forge_json_get "$STATE_FILE" "data.get('tier', 1)")"
 case "$COMMAND" in
   apply)
     MODE="${3:?Usage: studio-layout.sh apply <session-dir> <mode> [project-dir]}"
+    PROJECT_DIR="${4:-$PROJECT_DIR_DEFAULT}"
+    apply_layout "$MODE" "$PROJECT_DIR" "$SESSION_NAME" "$TIER"
+    ;;
+  refresh)
+    MODE="${3:-$(forge_json_get "$STATE_FILE" "data.get('studio_layout_mode', 'focus')")}"
     PROJECT_DIR="${4:-$PROJECT_DIR_DEFAULT}"
     apply_layout "$MODE" "$PROJECT_DIR" "$SESSION_NAME" "$TIER"
     ;;

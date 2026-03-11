@@ -88,3 +88,4 @@ Severity levels: `critical` (blocks), `major` (should fix), `minor` (quality imp
 - Group by severity: critical first, then major, then minor
 - If no high-confidence issues: confirm code looks solid with brief summary
 - Collapse duplicate findings that share the same root cause instead of reporting them twice
+- If the Manager gives you an `agent_id`, keep Forge Studio updated with concise progress notes using `bash scripts/studio-agents.sh note <session-dir> <agent-id> "<message>"`

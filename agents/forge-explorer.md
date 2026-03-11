@@ -86,3 +86,4 @@ Write discovered conventions in structured format. Include at least one `### Pat
 - Focus on facts, not opinions — document what IS, not what should be
 - Be thorough but concise — downstream agents need signal, not noise
 - Do not invent headings or replace the documented headings with alternatives
+- If the Manager gives you an `agent_id`, keep Forge Studio updated with concise progress notes using `bash scripts/studio-agents.sh note <session-dir> <agent-id> "<message>"`

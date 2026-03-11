@@ -20,6 +20,20 @@ CHECKPOINT="$(forge_json_get "$STATE_FILE" "data.get('checkpoint', 'No checkpoin
 LAYOUT_MODE="$(forge_json_get "$STATE_FILE" "data.get('studio_layout_mode', 'unknown')")"
 TIER="$(forge_json_get "$STATE_FILE" "data.get('tier', '?')")"
 EXECUTION_MODE="$(forge_execution_mode_from_state "$STATE_FILE")"
+ACTIVE_AGENT_COUNT="$(python3 - "$STATE_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    state = json.load(handle)
+
+count = 0
+for item in state.get("active_agents", []):
+    if item.get("status") not in {"complete", "failed", "cancelled"}:
+        count += 1
+print(count)
+PY
+)"
 SUMMARY_TARGET="none"
 if [ "$EXECUTION_MODE" = "jira" ] && [ -f "$SESSION_DIR/jira-context.json" ]; then
   SUMMARY_TARGET="jira-context.json"
@@ -39,6 +53,7 @@ cat >"$ACTIVITY_FILE" <<EOF
 $(forge_iso_timestamp) phase=$PHASE tier=$TIER mode=$EXECUTION_MODE layout=$LAYOUT_MODE
 checkpoint: $CHECKPOINT
 artifact: $SUMMARY_TARGET
+agents: $ACTIVE_AGENT_COUNT
 EOF
 
 cat "$ACTIVITY_FILE"

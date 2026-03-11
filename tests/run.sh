@@ -356,7 +356,7 @@ run_studio_dependency_tests() {
 }
 
 run_studio_runtime_tests() {
-  local tmp_root fake_bin repo_dir repo_dir_real session_dir gitpane_session_dir jira_session_dir state_file gitpane_state_file jira_state_file session_name other_session render_output popup_path help_output jira_render_output jira_help_output attach_output
+  local tmp_root fake_bin repo_dir repo_dir_real session_dir gitpane_session_dir jira_session_dir state_file gitpane_state_file jira_state_file session_name other_session render_output popup_path help_output jira_render_output jira_help_output attach_output agent_log pane_titles pane_count
   tmp_root="$(mktemp -d)"
   trap 'rm -rf "$tmp_root"' RETURN
   fake_bin="$tmp_root/bin"
@@ -505,6 +505,31 @@ EOF
   assert_contains "$attach_output" "Forge Studio session created detached: $session_name"
   assert_contains "$attach_output" "tmux attach -t $session_name"
 
+  agent_log="$(PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-agents.sh" register "$session_dir" "builder-1" "builder" "Builder-1" "subagent" "Implement task 1")"
+  [ -f "$agent_log" ] || fail "studio-agents register should create an agent log"
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-agents.sh" note "$session_dir" "builder-1" "working on contract wiring"
+  assert_file_contains "$agent_log" "working on contract wiring"
+  pane_titles="$(tmux list-panes -t "$session_name:0" -F '#{pane_title}')"
+  assert_contains "$pane_titles" "Forge Agent: Builder-1"
+  assert_file_contains "$session_dir/studio-layout.json" '"agent_id": "builder-1"'
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-agents.sh" complete "$session_dir" "builder-1" "complete" "task finished"
+  pane_titles="$(tmux list-panes -t "$session_name:0" -F '#{pane_title}')"
+  assert_not_contains "$pane_titles" "Forge Agent: Builder-1"
+
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-layout.sh" apply "$session_dir" swarm "$repo_dir" >/dev/null
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-agents.sh" register "$session_dir" "explorer-a" "explorer" "Explorer-A" "team" "Map architecture" >/dev/null
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-agents.sh" register "$session_dir" "explorer-b" "explorer" "Explorer-B" "team" "Map relevant code" >/dev/null
+  pane_titles="$(tmux list-panes -t "$session_name:0" -F '#{pane_title}')"
+  assert_contains "$pane_titles" "Forge Agent: Explorer-A"
+  assert_contains "$pane_titles" "Forge Agent: Explorer-B"
+  pane_count="$(tmux list-panes -t "$session_name:0" | wc -l | tr -d ' ')"
+  [ "$pane_count" -ge 5 ] || fail "swarm mode should create separate panes for active agents"
+  render_output="$(bash "$ROOT_DIR/scripts/tmux-render.sh" "$session_dir")"
+  assert_contains "$render_output" "AGENT SWARM"
+  assert_contains "$render_output" "Explorer-A: Map architecture"
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-agents.sh" complete "$session_dir" "explorer-a" "complete" "architecture mapped" >/dev/null
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-agents.sh" complete "$session_dir" "explorer-b" "complete" "code mapped" >/dev/null
+
   gitpane_state_file="$gitpane_session_dir/forge-state.json"
   write_state "$gitpane_state_file" "forge-20260311-155500" "build" "git pane"
   set_state_field "$gitpane_state_file" $'data["project_dir"] = "/Users/bhaveshy"\ndata["worktree_path"] = "'"$repo_dir"$'"'
@@ -573,8 +598,8 @@ EOF
 }
 
 run_metadata_tests() {
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.4.2"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.4.2"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.5.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.5.0"'
   assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
   assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
   assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'

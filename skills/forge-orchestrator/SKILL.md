@@ -40,8 +40,8 @@ Score the request on 4 signals (0/2/4 points each):
 | Project | Greenfield | Small brownfield (<50 files) | Large brownfield (50+ files) |
 
 **Tier 1** (0-3): Manager handles directly inside Forge Studio focus mode.
-**Tier 2** (4-8): Explorer → Builder → Reviewer inside Forge Studio build mode.
-**Tier 3** (9+): Explorer×2 → Architect → Builder → Reviewer×2 inside Forge Studio swarm mode.
+**Tier 2** (4-8): Use subagents where they add speed or isolation. Default path is Explorer → Builder → Reviewer inside Forge Studio build mode.
+**Tier 3** (9+): Use a real swarm workflow: Explorer×2 → Architect → Builder → Reviewer×2, with each active agent represented in Forge Studio swarm panes.
 
 ## Session Initialization (All Tiers)
 
@@ -172,17 +172,25 @@ For EVERY phase:
 6. **Evaluate** the gate condition with `bash scripts/check-phase-gate.sh <phase> <session_dir>` whenever the phase writes artifacts
 7. **Pass**: update state, advance. **Fail**: consult backtrack matrix, create diagnostic, backtrack
 
+Before every dispatched agent:
+- Register it with `bash scripts/studio-agents.sh register <session-dir> <agent-id> <role> <name> <subagent|team> "<task summary>"`
+- Include the agent id and log file path in the prompt
+- Tell the agent to append progress notes with `bash scripts/studio-agents.sh note ...`
+- On completion, mark it with `bash scripts/studio-agents.sh complete <session-dir> <agent-id> <complete|failed>`
+
 ## Tier 2 Pipeline
 ```
 CLASSIFY → GRILL (0-3 Qs) → EXPLORE → BUILD → REVIEW → [loop if critical, max 2] → COMPOUND → DONE
 ```
 Models: Explorer=sonnet, Builder=opus, Reviewer=opus.
+Use subagents selectively. If the task is tiny or the handoff cost outweighs the benefit, Manager may keep work direct.
 
 ## Tier 3 Pipeline
 ```
 CLASSIFY → GRILL (2-8 Qs) → EXPLORE (2× parallel) → ARCHITECT → BUILD → REVIEW (2× parallel) → [loop max 3] → VERIFY → COMPOUND → DONE
 ```
 Models: Explorer=sonnet, Architect/Builder/Reviewer=opus. Forge Studio swarm mode active.
+Tier 3 should default to parallel explorers and parallel reviewers unless the task is too small to benefit.
 
 ## Subagent Dispatch
 
@@ -214,6 +222,7 @@ Forge Studio is the default terminal workspace for every run.
 - `bash scripts/studio-check-deps.sh` validates required tools
 - `bash scripts/tmux-setup.sh <session-dir>` creates or attaches to the Studio session
 - `bash scripts/studio-layout.sh apply <session-dir> <mode>` applies `focus`, `build`, or `swarm`
+- `bash scripts/studio-agents.sh ...` keeps `active_agents` and per-agent logs in sync with the Studio panes
 - `bash scripts/studio-popup.sh open <session-dir> <target>` opens read-only popups for session artifacts
 - Studio persists after completion; it is not auto-destroyed during COMPOUND
 - Studio is aware of both `execution_mode` (`prompt` or `jira`) and the tier-derived layout mode

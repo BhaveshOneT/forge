@@ -70,3 +70,4 @@ This file must conform to `schemas/build-task-result.schema.json`. Do not add ex
 - If backtracking: fix ONLY the identified issue, do not refactor unrelated code
 - Follow the codebase's existing conventions (from patterns.md), not your preferences
 - `build-task-N-result.json` is a contract with the manager. Keep values factual and machine-checkable.
+- If the Manager gives you an `agent_id`, keep Forge Studio updated with concise progress notes using `bash scripts/studio-agents.sh note <session-dir> <agent-id> "<message>"`
