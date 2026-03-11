@@ -32,5 +32,5 @@
 
 ---
 
-Built autonomously by [Forge](https://github.com/BhaveshY/forge) — dynamic agent orchestrator
+Built autonomously by [Forge](https://github.com/BhaveshOneT/forge) — dynamic agent orchestrator
 Session: `{{session_id}}` | Tier: {{tier}} | Backtracks: {{total_backtracks}} | Build-Review loops: {{build_review_loop}}

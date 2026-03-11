@@ -1,39 +1,35 @@
 #!/usr/bin/env bash
-# Forge: One-time hook installation
-# Adds forge hooks to the user's Claude Code settings.
+# Forge: Validate bundled hook configuration.
+# Plugin installs load hooks from hooks/hooks.json automatically.
 # Usage: bash setup-hooks.sh
 
 set -euo pipefail
 
 FORGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+PLUGIN_HOOKS="$FORGE_DIR/hooks/hooks.json"
+PROJECT_HOOKS="$FORGE_DIR/.claude/settings.json"
 
-echo "Forge Hook Setup"
-echo "================"
+echo "Forge Hook Validation"
+echo "====================="
 echo "Plugin directory: $FORGE_DIR"
 echo ""
 
-# Check if settings file exists
-if [ ! -f "$CLAUDE_SETTINGS" ]; then
-  echo "No Claude settings found at $CLAUDE_SETTINGS"
-  echo "Creating minimal settings with forge hooks..."
-  mkdir -p "$(dirname "$CLAUDE_SETTINGS")"
-  cat > "$CLAUDE_SETTINGS" << 'EOF'
-{
-  "hooks": {}
-}
-EOF
+if [ ! -f "$PLUGIN_HOOKS" ]; then
+  echo "Missing plugin hook file: $PLUGIN_HOOKS" >&2
+  exit 1
 fi
 
-echo "Forge hooks are configured in .claude/settings.json within the plugin directory."
-echo "They will be active when the forge plugin is installed."
+if [ ! -f "$PROJECT_HOOKS" ]; then
+  echo "Missing project-local hook file: $PROJECT_HOOKS" >&2
+  exit 1
+fi
+
+echo "Bundled plugin hooks: $PLUGIN_HOOKS"
+echo "Local development hooks: $PROJECT_HOOKS"
 echo ""
-echo "Hook configuration:"
-echo "  PreToolUse  → destructive-guard.sh (blocks dangerous operations)"
-echo "  PreCompact  → pre-compact.sh (snapshots state before compaction)"
-echo "  SessionStart(compact) → post-compact.sh (injects recovery context)"
+echo "Runtime behavior:"
+echo "  Installed plugin → hooks use \${CLAUDE_PLUGIN_ROOT}"
+echo "  This repository → hooks use \${CLAUDE_PROJECT_DIR}"
 echo ""
-echo "To install the plugin, add it via Claude Code marketplace or symlink:"
-echo "  ln -s $FORGE_DIR ~/.claude/plugins/forge"
-echo ""
-echo "Setup complete."
+echo "No user-global Claude settings were modified."
+echo "Validation complete."

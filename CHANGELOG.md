@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1 — 2026-03-11
+
+### Fixed
+- Packaged hooks correctly for plugin installs via `hooks/hooks.json` and `${CLAUDE_PLUGIN_ROOT}`
+- Updated repo-local development hooks to use `${CLAUDE_PROJECT_DIR}`
+- Hardened destructive guard parsing to read structured hook payloads and emit block messages on stderr
+- Fixed compact recovery to resume the newest active session instead of the first directory match
+- Reduced recovery prompt-injection risk by treating restored notes as untrusted excerpts
+- Hardened worktree teardown to reject unsafe session ids and operate against the owning repository explicitly
+- Fixed TMUX dashboard teardown to target the Forge pane instead of assuming pane index `1`
+- Aligned marketplace metadata with the plugin version
+
 ## 1.1.0 — 2026-03-11
 
 ### Added

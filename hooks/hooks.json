@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/scripts/destructive-guard.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/destructive-guard.sh\""
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/scripts/pre-compact.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/pre-compact.sh\""
           }
         ]
       }
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR}/scripts/post-compact.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/post-compact.sh\""
           }
         ]
       }

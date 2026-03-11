@@ -2,12 +2,55 @@
 
 A Claude Code plugin that adapts to task complexity. Simple tasks get direct execution, medium tasks get 3 agents, complex tasks get the full swarm with a TMUX dashboard.
 
+## Mental Model
+
+Forge is a manager prompt plus a small shell runtime. The manager scores the task, chooses the lightest execution path that can still do the job safely, and persists state to disk so interrupted sessions resume from files instead of chat history.
+
+```text
+user request
+    |
+    v
++-----------+
+| CLASSIFY  | clarity + scope + keywords + repo size
++-----------+
+    |
+    +--> Tier 1: manager executes directly
+    |
+    +--> Tier 2: Explorer -> Builder -> Reviewer
+    |
+    `--> Tier 3: Explorer x2 -> Architect -> Builder -> Reviewer x2 -> Verify
+```
+
 ## Installation
 
 ```bash
 # Via Claude Code marketplace (when published)
 # Or manually:
-git clone https://github.com/BhaveshY/forge.git ~/.claude/plugins/forge
+git clone https://github.com/BhaveshOneT/forge.git ~/.claude/plugins/forge
+```
+
+### Hook Layout
+
+The runtime has two hook entry points on purpose:
+
+```text
+installed plugin
+  hooks/hooks.json
+      |
+      `--> ${CLAUDE_PLUGIN_ROOT}/scripts/*.sh
+
+local repo development
+  .claude/settings.json
+      |
+      `--> ${CLAUDE_PROJECT_DIR}/scripts/*.sh
+```
+
+Plugin installs use `hooks/hooks.json`. The repo-local `.claude/settings.json` exists so you can exercise the same scripts while developing Forge itself.
+
+To validate the packaged hook wiring:
+
+```bash
+bash ~/.claude/plugins/forge/scripts/setup-hooks.sh
 ```
 
 ## Usage
@@ -40,6 +83,14 @@ Every request is classified on 4 signals (clarity, scope, keywords, project stat
 | **Medium** | 4-8 | 3 (sequential) | No | Yes |
 | **Complex** | 9+ | 6 (parallel) | Yes | Yes |
 
+```text
+score 0-3       score 4-8                 score 9-16
+   |               |                          |
+ Tier 1          Tier 2                     Tier 3
+ direct          explore -> build ->       explore -> architect
+ execution       review                    -> build -> review -> verify
+```
+
 ### 4 Agent Personas
 
 | Agent | Role | Model | Notes |
@@ -58,6 +109,13 @@ Instead of passing raw conversation transcripts between agents (~500+ lines), Fo
 - **`context/loop-learnings.md`** — Per-iteration build-review learnings
 
 Each iteration's Builder reads ALL previous learnings, avoiding repeated mistakes.
+
+```text
+context/
+├── decisions.md       implementation choices + evidence
+├── patterns.md        existing codebase conventions
+└── loop-learnings.md  lessons from each review cycle
+```
 
 ### Build-Review Loop
 
@@ -196,10 +254,21 @@ All Tier 2 & 3 sessions run in isolated git worktrees. Main branch is never modi
 ### Lifecycle
 
 ```
-Session Init → git worktree add ~/.claude/forge/worktrees/<id> -b forge/<branch>
-During Work  → All agents operate in worktree directory
-SHIP         → git push from worktree, gh pr create
-COMPOUND     → git worktree remove, branch kept for PR
+repo/main
+   |
+   +--> Session Init
+   |      git worktree add ~/.claude/forge/worktrees/<id> -b forge/<branch>
+   |
+   +--> During Work
+   |      all edits happen in the worktree
+   |
+   +--> SHIP
+   |      git push from worktree
+   |      gh pr create
+   |
+   `--> COMPOUND
+          git worktree remove
+          keep branch if a PR exists
 ```
 
 Tier 1 (simple tasks, 0-3 complexity) skips worktrees — overhead isn't worth it for single-file fixes.
@@ -234,6 +303,27 @@ Outside tmux, inline status lines are printed after each phase.
 Forge survives Claude Code context compaction:
 - **Pre-compact hook**: Snapshots state + recent decisions + loop learnings to `recovery-state.md`
 - **Post-compact hook**: Injects recovery context so the Manager resumes seamlessly
+
+```text
+active session
+    |
+    +--> PreCompact
+    |      write recovery-state.md from forge-state.json
+    |
+    `--> SessionStart(compact)
+           inject recovery-state.md
+           resume from recorded phase
+```
+
+## Safety Model
+
+The runtime safety story is deliberately small and mechanical:
+
+- `scripts/destructive-guard.sh` blocks obviously destructive Bash tool calls before execution.
+- Tier 2 and Tier 3 sessions work in git worktrees rather than the main checkout.
+- Recovery always re-reads `forge-state.json`; chat memory is not the source of truth.
+- TMUX cleanup records the Forge pane id so teardown only targets the dashboard pane.
+- `tests/run.sh` exercises the shell behaviors most likely to regress.
 
 ## Session Data
 

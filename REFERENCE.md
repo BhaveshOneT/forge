@@ -4,6 +4,44 @@ Detailed phase protocols, dispatch templates, gate conditions, and the backtrack
 
 ---
 
+## Execution Map
+
+This is the shortest accurate description of how Forge runs.
+
+```text
+/forge
+  |
+  +--> CLASSIFY
+  |      decide tier and whether a session/worktree is needed
+  |
+  +--> GRILL
+  |      gather missing requirements once
+  |
+  +--> EXECUTE
+  |      Tier 1: manager only
+  |      Tier 2: explore -> build -> review
+  |      Tier 3: explore -> architect -> build -> review -> verify
+  |
+  `--> COMPOUND
+         write summary
+         extract memory
+         tear down tmux/worktree
+```
+
+## State Ownership
+
+```text
+forge-state.json          authoritative phase + retry state
+requirements.md           accepted scope and constraints
+context/decisions.md      why choices were made
+context/patterns.md       conventions discovered during exploration
+context/loop-learnings.md lessons from each build/review cycle
+```
+
+Recovery rule: files are truth, conversation is cache.
+
+---
+
 ## Phase: CLASSIFY
 
 **Action**: Manager scores directly (no subagent).
@@ -221,6 +259,15 @@ Write issues to: {session_dir}/review-issues-alignment.json
 4. Clean up worktree (Tier 2 & 3): `bash scripts/worktree-teardown.sh <session-id>`, set `worktree_cleaned: true` in forge-state.json
 5. Mark session complete
 
+```text
+COMPOUND
+   |
+   +--> write session-summary.md
+   +--> append distilled learnings to memory
+   +--> tear down tmux dashboard
+   `--> remove worktree if one was created
+```
+
 ---
 
 ## Backtrack Decision Matrix
@@ -245,9 +292,17 @@ VERIFY         | Requirement not met        | → ARCHITECT (revise)
 
 Backtracking to an earlier phase re-runs all subsequent phases:
 ```
-EXPLORE backtrack    → re-run ARCHITECT → BUILD → REVIEW → VERIFY
-ARCHITECT backtrack  → re-run BUILD → REVIEW → VERIFY
-BUILD backtrack      → re-run REVIEW → VERIFY
+EXPLORE fail
+   |
+   `--> EXPLORE -> ARCHITECT -> BUILD -> REVIEW -> VERIFY
+
+ARCHITECT fail
+   |
+   `--> ARCHITECT -> BUILD -> REVIEW -> VERIFY
+
+BUILD fail
+   |
+   `--> BUILD -> REVIEW -> VERIFY
 ```
 
 ### Safety Limits

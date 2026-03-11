@@ -1,7 +1,8 @@
 {
   "name": "forge",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Dynamic agent orchestrator that adapts to task complexity. Simple tasks get a single agent, complex tasks get the full swarm with TMUX dashboard. Token-efficient, staff-engineer-level agents, asks all questions upfront, runs autonomously.",
+  "hooks": "./hooks/hooks.json",
   "author": {
     "name": "BhaveshOneT"
   },

@@ -3,39 +3,57 @@
 # Blocks dangerous commands that could destroy work.
 # Exit 0 = allow, Exit 2 = block with message.
 
-# Only check Bash commands
-[ "$TOOL_NAME" = "Bash" ] || exit 0
+set -euo pipefail
 
-# Extract the command from tool input
-COMMAND="${TOOL_INPUT_COMMAND:-}"
-[ -n "$COMMAND" ] || exit 0
+FORGE_HOOK_PAYLOAD="$(cat || true)"
+export FORGE_HOOK_PAYLOAD
 
-# Destructive patterns to block
-BLOCKED_PATTERNS=(
-  "rm -rf /"
-  "rm -rf ~"
-  "rm -rf \$HOME"
-  "git reset --hard"
-  "git clean -fd"
-  "git checkout -- ."
-  "git push --force"
-  "git push -f"
-  "drop table"
-  "DROP TABLE"
-  "truncate table"
-  "TRUNCATE TABLE"
-  "> /dev/sda"
-  "mkfs."
-  "dd if="
+python3 <<'PY'
+import json
+import os
+import sys
+
+try:
+    payload = json.loads(os.environ.get("FORGE_HOOK_PAYLOAD", ""))
+except Exception:
+    sys.exit(0)
+
+if payload.get("tool_name") != "Bash":
+    sys.exit(0)
+
+tool_input = payload.get("tool_input") or {}
+command = tool_input.get("command") or ""
+if not command:
+    sys.exit(0)
+
+patterns = (
+    "rm -rf /",
+    "rm -rf ~",
+    "rm -rf $home",
+    "git reset --hard",
+    "git clean -fd",
+    "git checkout -- .",
+    "git push --force",
+    "git push -f",
+    "drop table",
+    "truncate table",
+    "> /dev/sda",
+    "mkfs.",
+    "dd if=",
 )
 
-for pattern in "${BLOCKED_PATTERNS[@]}"; do
-  if [[ "$COMMAND" == *"$pattern"* ]]; then
-    echo "BLOCKED by Forge safety guard: Command contains '$pattern'"
-    echo "If you need to run this command, ask the user to execute it manually."
-    exit 2
-  fi
-done
+command_lower = command.casefold()
+for pattern in patterns:
+    if pattern.casefold() in command_lower:
+        print(
+            f"BLOCKED by Forge safety guard: command matches '{pattern}'",
+            file=sys.stderr,
+        )
+        print(
+            "If you need to run this command, have the user execute it manually.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
-# Allow the command
-exit 0
+sys.exit(0)
+PY
