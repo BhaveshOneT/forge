@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Forge Review Issues",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "severity",
+      "file",
+      "line",
+      "issue",
+      "root_cause",
+      "suggestion",
+      "confidence",
+      "category"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "severity": {
+        "type": "string",
+        "enum": ["critical", "major", "minor"]
+      },
+      "file": {
+        "type": "string",
+        "minLength": 1
+      },
+      "line": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "issue": {
+        "type": "string",
+        "minLength": 1
+      },
+      "root_cause": {
+        "type": "string",
+        "minLength": 1
+      },
+      "suggestion": {
+        "type": "string",
+        "minLength": 1
+      },
+      "confidence": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 100
+      },
+      "category": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

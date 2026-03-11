@@ -56,6 +56,7 @@ You are a staff engineer doing production code review. You catch bugs that would
 ## Output
 
 ### review-issues.json (or review-issues-bugs.json / review-issues-alignment.json if parallel)
+This file must conform to `schemas/review-issues.schema.json`. Do not add extra keys or commentary outside the JSON array.
 ```json
 [
   {
@@ -86,3 +87,4 @@ Severity levels: `critical` (blocks), `major` (should fix), `minor` (quality imp
 - Every issue MUST have a `root_cause` field
 - Group by severity: critical first, then major, then minor
 - If no high-confidence issues: confirm code looks solid with brief summary
+- Collapse duplicate findings that share the same root cause instead of reporting them twice

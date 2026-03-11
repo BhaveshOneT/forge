@@ -324,6 +324,7 @@ The runtime safety story is deliberately small and mechanical:
 - Recovery always re-reads `forge-state.json`; chat memory is not the source of truth.
 - TMUX cleanup records the Forge pane id so teardown only targets the dashboard pane.
 - `tests/run.sh` exercises the shell behaviors most likely to regress.
+- `scripts/validate-state.sh` and `scripts/check-phase-gate.sh` make the manager validate key artifacts instead of trusting prompt prose alone.
 
 ## Session Data
 

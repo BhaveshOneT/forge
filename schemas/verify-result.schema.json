@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Forge Verify Result",
+  "type": "object",
+  "required": [
+    "build_passed",
+    "lint_configured",
+    "lint_passed",
+    "typecheck_configured",
+    "typecheck_passed",
+    "tests_passed",
+    "requirements_checked",
+    "requirements_gaps",
+    "overall_status",
+    "notes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "build_passed": {
+      "type": "boolean"
+    },
+    "lint_configured": {
+      "type": "boolean"
+    },
+    "lint_passed": {
+      "type": "boolean"
+    },
+    "typecheck_configured": {
+      "type": "boolean"
+    },
+    "typecheck_passed": {
+      "type": "boolean"
+    },
+    "tests_passed": {
+      "type": "boolean"
+    },
+    "requirements_checked": {
+      "type": "boolean"
+    },
+    "requirements_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overall_status": {
+      "type": "string",
+      "enum": ["passed", "failed"]
+    },
+    "notes": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

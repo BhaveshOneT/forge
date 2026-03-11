@@ -32,6 +32,8 @@ Then explore the project directory thoroughly.
 
 ### exploration.md (or exploration-architecture.md / exploration-code.md if parallel)
 
+Use the headings below exactly. Forge validates this file structurally during the `explore` gate.
+
 ```markdown
 # Exploration: [Focus Area]
 
@@ -70,7 +72,7 @@ Then explore the project directory thoroughly.
 
 ### context/patterns.md
 
-Write discovered conventions in structured format:
+Write discovered conventions in structured format. Include at least one `### Pattern:` entry even if the codebase is small.
 ```markdown
 ### Pattern: [Name]
 **Found in**: [file path]
@@ -83,3 +85,4 @@ Write discovered conventions in structured format:
 - **Read-only** — never create, modify, or delete project files
 - Focus on facts, not opinions — document what IS, not what should be
 - Be thorough but concise — downstream agents need signal, not noise
+- Do not invent headings or replace the documented headings with alternatives

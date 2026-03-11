@@ -146,16 +146,183 @@ run_worktree_tests() {
 }
 
 run_metadata_tests() {
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.1.1"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.1.1"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.2.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.2.0"'
   assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
   assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
   assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'
 }
 
+run_validation_tests() {
+  local tmp_root session_dir build_result
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' RETURN
+  session_dir="$tmp_root/session"
+  mkdir -p "$session_dir/context" "$session_dir/contracts"
+
+  write_state "$session_dir/forge-state.json" "forge-20260311-140000" "verify" "validate"
+  python3 - "$session_dir/forge-state.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    data = json.load(handle)
+
+data["complexity_score"] = 8
+data["project_type"] = "brownfield"
+
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle)
+PY
+
+  cat >"$session_dir/requirements.md" <<'EOF'
+# Requirements — forge-20260311-140000
+
+## Task
+Validate a session
+
+## Functional Requirements
+- [ ] Something real
+
+## Constraints
+- Keep it deterministic
+
+## Acceptance Criteria
+- [ ] Works
+EOF
+
+  cat >"$session_dir/exploration.md" <<'EOF'
+# Exploration: Full
+
+## Project Overview
+- Framework: none
+
+## Conventions
+- Naming: simple
+
+## Relevant Files
+- README.md
+
+## Test Approach
+- Test framework: bash
+
+## Web Research
+- **Query**: bash testing
+- **Source**: https://example.com/bash
+- **Finding**: good enough
+- **Impact**: validates the gate
+
+## Risks & Concerns
+- none
+EOF
+
+  cat >"$session_dir/context/patterns.md" <<'EOF'
+### Pattern: Minimal
+**Found in**: README.md
+**Convention**: Keep examples concise
+**Apply to**: Tests
+EOF
+
+  cat >"$session_dir/plan.md" <<'EOF'
+# Implementation Plan
+
+## Architecture
+Simple.
+
+## Research Citations
+- Bash: https://example.com/bash
+
+## Contracts
+- None
+
+## Tasks
+### Task 1: Validate
+- **Files**: `README.md`
+- **Description**: Validate output
+- **Dependencies**: None
+- **Acceptance**: Gate passes
+
+## Risks & Mitigations
+- **Risk**: None
+EOF
+
+  build_result="$session_dir/build-task-1-result.json"
+  cat >"$build_result" <<'EOF'
+{
+  "task_number": 1,
+  "status": "complete",
+  "files_created": [],
+  "files_modified": ["README.md"],
+  "tests_written": ["tests/run.sh"],
+  "compiled": true,
+  "tests_passed": true,
+  "notes": "validated"
+}
+EOF
+
+  cat >"$session_dir/review-issues.json" <<'EOF'
+[]
+EOF
+
+  cat >"$session_dir/verify-result.json" <<'EOF'
+{
+  "build_passed": true,
+  "lint_configured": false,
+  "lint_passed": false,
+  "typecheck_configured": false,
+  "typecheck_passed": false,
+  "tests_passed": true,
+  "requirements_checked": true,
+  "requirements_gaps": [],
+  "overall_status": "passed",
+  "notes": "all checks passed"
+}
+EOF
+
+  cat >"$session_dir/session-summary.md" <<'EOF'
+# Session Summary
+Done.
+EOF
+
+  bash "$ROOT_DIR/scripts/validate-state.sh" "$session_dir/forge-state.json"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" classify "$session_dir"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" grill "$session_dir"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" explore "$session_dir"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" architect "$session_dir"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" build "$session_dir"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" review "$session_dir"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" verify "$session_dir"
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" compound "$session_dir"
+
+  python3 - "$session_dir/forge-state.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    data = json.load(handle)
+
+data["current_phase"] = "bad-phase"
+
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle)
+PY
+
+  set +e
+  bash "$ROOT_DIR/scripts/validate-state.sh" "$session_dir/forge-state.json" >/dev/null 2>&1
+  local status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "validate-state should reject invalid phase names"
+
+  trap - RETURN
+  rm -rf "$tmp_root"
+}
+
 run_destructive_guard_tests
 run_recovery_tests
 run_worktree_tests
+run_validation_tests
 run_metadata_tests
 
 echo "All tests passed."

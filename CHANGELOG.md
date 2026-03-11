@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 — 2026-03-11
+
+### Added
+- State validation via `scripts/validate-state.sh` and `schemas/forge-state.schema.json`
+- Phase gate enforcement via `scripts/check-phase-gate.sh`
+- JSON schemas for builder, reviewer, verify, Jira context, and ship artifacts
+- Regression coverage for state validation and phase gate checks
+
+### Changed
+- Tightened manager and agent prompts to treat artifact schemas and gate scripts as authoritative
+
 ## 1.1.1 — 2026-03-11
 
 ### Fixed

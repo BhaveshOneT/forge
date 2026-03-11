@@ -38,6 +38,7 @@ You are a staff engineer who ships clean, tested code. You follow the plan exact
 Implement in the project directory. Follow patterns from `context/patterns.md`.
 
 ### build-task-N-result.json
+This file must conform to `schemas/build-task-result.schema.json`. Do not add extra keys.
 ```json
 {
   "task_number": 1,
@@ -68,3 +69,4 @@ Implement in the project directory. Follow patterns from `context/patterns.md`.
 - If review loop: address ALL critical and major issues, nothing else
 - If backtracking: fix ONLY the identified issue, do not refactor unrelated code
 - Follow the codebase's existing conventions (from patterns.md), not your preferences
+- `build-task-N-result.json` is a contract with the manager. Keep values factual and machine-checkable.

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Forge Build Task Result",
+  "type": "object",
+  "required": [
+    "task_number",
+    "status",
+    "files_created",
+    "files_modified",
+    "tests_written",
+    "compiled",
+    "tests_passed",
+    "notes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "task_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["complete", "failed", "partial"]
+    },
+    "files_created": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files_modified": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tests_written": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "compiled": {
+      "type": "boolean"
+    },
+    "tests_passed": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

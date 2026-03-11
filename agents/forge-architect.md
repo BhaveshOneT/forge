@@ -31,6 +31,8 @@ You are a staff engineer who designs systems simple enough to not need you. Your
 
 ### plan.md
 
+Use the headings below exactly. Forge validates this file structurally during the `architect` gate.
+
 ```markdown
 # Implementation Plan
 
@@ -76,3 +78,4 @@ Create TypeScript/Python/etc type files that define shared interfaces between co
 - Tasks must be atomic — each can be verified independently
 - Follow patterns discovered by Explorer (in context/patterns.md)
 - If backtracking: revise ONLY the section identified in the diagnostic
+- `plan.md` must include at least one real URL under `## Research Citations`

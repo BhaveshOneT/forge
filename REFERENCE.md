@@ -40,6 +40,18 @@ context/loop-learnings.md lessons from each build/review cycle
 
 Recovery rule: files are truth, conversation is cache.
 
+## Enforced Checks
+
+Forge now has scriptable validation for the artifacts the prompts talk about:
+
+```text
+forge-state.json        -> bash scripts/validate-state.sh <state-file>
+phase artifacts         -> bash scripts/check-phase-gate.sh <phase> <session-dir>
+builder output JSON     -> schemas/build-task-result.schema.json
+reviewer output JSON    -> schemas/review-issues.schema.json
+verify output JSON      -> schemas/verify-result.schema.json
+```
+
 ---
 
 ## Phase: CLASSIFY
@@ -57,6 +69,9 @@ Also detect project type: check for `package.json`, `pyproject.toml`, `Cargo.tom
 
 **Output**: Set `tier`, `complexity_score`, `project_type` in `forge-state.json`.
 
+**Enforcement**:
+- Validate with `bash scripts/validate-state.sh {session_dir}/forge-state.json`
+
 ---
 
 ## Phase: GRILL
@@ -66,6 +81,9 @@ Also detect project type: check for `package.json`, `pyproject.toml`, `Cargo.tom
 ALL questions in ONE call. After response, write `requirements.md`.
 
 **Gate**: Requirements written with clear scope, acceptance criteria, and constraints.
+
+**Enforcement**:
+- `bash scripts/check-phase-gate.sh grill {session_dir}`
 
 ---
 
@@ -118,6 +136,9 @@ Write output to: {session_dir}/exploration-code.md
 
 **Gate**: `exploration.md` exists with sections: conventions, patterns, relevant files, test approach. `context/patterns.md` populated.
 
+**Enforcement**:
+- `bash scripts/check-phase-gate.sh explore {session_dir}`
+
 ---
 
 ## Phase: ARCHITECT (Tier 3 only)
@@ -145,6 +166,9 @@ Revise ONLY the section identified.
 ```
 
 **Gate**: `plan.md` exists with task decomposition, file map, research citations (≥1 tier-1 source), `contracts/` created. Plan auto-approved (full autonomy after grilling).
+
+**Enforcement**:
+- `bash scripts/check-phase-gate.sh architect {session_dir}`
 
 ---
 
@@ -182,6 +206,10 @@ Address ALL critical and major issues. Do not refactor unrelated code.
 ```
 
 **Gate**: Implementation compiles/runs without errors. `build-task-N-result.json` shows success. Tests pass.
+
+**Enforcement**:
+- Builder writes `build-task-N-result.json` conforming to `schemas/build-task-result.schema.json`
+- `bash scripts/check-phase-gate.sh build {session_dir}`
 
 ---
 
@@ -235,6 +263,10 @@ Write issues to: {session_dir}/review-issues-alignment.json
 
 **Gate**: 0 critical issues. If critical → backtrack per matrix.
 
+**Enforcement**:
+- Reviewer writes `review-issues.json` conforming to `schemas/review-issues.schema.json`
+- `bash scripts/check-phase-gate.sh review {session_dir}`
+
 ---
 
 ## Phase: VERIFY (Tier 3 only)
@@ -246,7 +278,13 @@ Write issues to: {session_dir}/review-issues-alignment.json
 4. Run full test suite
 5. Check requirements line-by-line against requirements.md
 
+**Artifact**:
+- Write `{session_dir}/verify-result.json` conforming to `schemas/verify-result.schema.json`
+
 **Gate**: ALL checks pass. If any fail → backtrack per matrix.
+
+**Enforcement**:
+- `bash scripts/check-phase-gate.sh verify {session_dir}`
 
 ---
 
@@ -267,6 +305,9 @@ COMPOUND
    +--> tear down tmux dashboard
    `--> remove worktree if one was created
 ```
+
+**Enforcement**:
+- `bash scripts/check-phase-gate.sh compound {session_dir}`
 
 ---
 
@@ -291,6 +332,15 @@ VERIFY         | Requirement not met        | → ARCHITECT (revise)
 ### Cascade Rules
 
 Backtracking to an earlier phase re-runs all subsequent phases:
+```
+
+## Jira Artifact Gates
+
+```text
+JIRA_FETCH         -> jira-context.json      -> check-phase-gate.sh jira_fetch
+CONFLUENCE_ENRICH  -> confluence-context.md  -> check-phase-gate.sh confluence_enrich
+SYNTHESIZE         -> requirements.md        -> check-phase-gate.sh synthesize
+SHIP               -> ship-result.json       -> check-phase-gate.sh ship
 ```
 EXPLORE fail
    |

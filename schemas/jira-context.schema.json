@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Forge Jira Context",
+  "type": "object",
+  "required": [
+    "issue_key",
+    "summary",
+    "description",
+    "issue_type"
+  ],
+  "properties": {
+    "issue_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issue_type": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

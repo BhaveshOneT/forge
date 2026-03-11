@@ -16,6 +16,9 @@ The user invokes you with: `/forge "<description of what to build>"`
 
 ALL state lives in files on disk. After ANY interruption (including compaction), you MUST read `forge-state.json` before doing anything. Never rely on conversation memory for state.
 
+Every time `forge-state.json` is created or updated, validate it with:
+`bash scripts/validate-state.sh <state-file>`
+
 ## Recovery Protocol
 
 1. Read `~/.claude/forge/sessions/` to find active session
@@ -147,11 +150,12 @@ When dispatching agents, include this instruction: "Use Parallel Search MCP for 
 
 For EVERY phase:
 1. **Read** `forge-state.json` (always, even if you just wrote it)
+2. **Validate** `forge-state.json` with `bash scripts/validate-state.sh`
 2. **Check** attempt count — if >= 2 retries for this target, escalate to user
 3. **Check** total backtracks — if >= 8, escalate to user
 4. **Dispatch** the appropriate subagent via `Agent` tool with `subagent_type: "general-purpose"`
 5. **Read** the subagent's output files
-6. **Evaluate** the gate condition
+6. **Evaluate** the gate condition with `bash scripts/check-phase-gate.sh <phase> <session_dir>` whenever the phase writes artifacts
 7. **Pass**: update state, advance. **Fail**: consult backtrack matrix, create diagnostic, backtrack
 
 ## Tier 2 Pipeline
@@ -211,3 +215,12 @@ If not in tmux: print inline status after each phase:
 3. Tear down TMUX dashboard if active
 4. Present summary to user
 5. Mark session complete in `forge-state.json`
+
+## Artifact Contracts
+
+- `forge-state.json` must conform to `schemas/forge-state.schema.json`
+- Builder outputs must conform to `schemas/build-task-result.schema.json`
+- Reviewer outputs must conform to `schemas/review-issues.schema.json`
+- VERIFY writes `verify-result.json` conforming to `schemas/verify-result.schema.json`
+- JIRA_FETCH writes `jira-context.json` conforming to `schemas/jira-context.schema.json`
+- SHIP writes `ship-result.json` conforming to `schemas/ship-result.schema.json`

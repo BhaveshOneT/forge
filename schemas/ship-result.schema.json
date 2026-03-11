@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Forge Ship Result",
+  "type": "object",
+  "required": [
+    "branch",
+    "pr_url",
+    "pr_number",
+    "jira_comment_added",
+    "jira_transitioned"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pr_url": {
+      "type": "string",
+      "pattern": "^https?://.+"
+    },
+    "pr_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "jira_comment_added": {
+      "type": "boolean"
+    },
+    "jira_transitioned": {
+      "type": "boolean"
+    },
+    "jira_new_status": {
+      "type": "string"
+    }
+  }
+}

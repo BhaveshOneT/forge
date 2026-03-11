@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Forge State",
+  "type": "object",
+  "required": [
+    "session_id",
+    "current_phase",
+    "tier",
+    "phase_attempt",
+    "total_backtracks",
+    "build_review_loop"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "pattern": "^forge-[A-Za-z0-9._-]+$"
+    },
+    "current_phase": {
+      "type": "string",
+      "enum": [
+        "classify",
+        "grill",
+        "jira_fetch",
+        "confluence_enrich",
+        "synthesize",
+        "explore",
+        "architect",
+        "build",
+        "review",
+        "verify",
+        "ship",
+        "compound",
+        "complete"
+      ]
+    },
+    "tier": {
+      "type": "integer",
+      "enum": [1, 2, 3]
+    },
+    "phase_attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "total_backtracks": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "build_review_loop": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "complexity_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 16
+    },
+    "project_type": {
+      "type": "string",
+      "enum": ["greenfield", "brownfield"]
+    },
+    "checkpoint": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["", "jira"]
+    },
+    "jira_issue_key": {
+      "type": "string"
+    },
+    "jira_issue_type": {
+      "type": "string"
+    },
+    "jira_priority": {
+      "type": "string"
+    },
+    "project_dir": {
+      "type": "string"
+    },
+    "worktree_path": {
+      "type": "string"
+    },
+    "worktree_branch": {
+      "type": "string"
+    },
+    "worktree_created": {
+      "type": "boolean"
+    },
+    "worktree_cleaned": {
+      "type": "boolean"
+    },
+    "grilling_override": {
+      "type": "string",
+      "enum": ["minimal", "standard", "confirm_scope"]
+    },
+    "phase_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["phase", "status"],
+        "properties": {
+          "phase": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "complete", "failed"]
+          },
+          "confidence": {
+            "type": ["number", "integer"],
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "active_agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "status"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "build_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
