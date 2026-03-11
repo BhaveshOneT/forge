@@ -1,0 +1,21 @@
+{
+  "name": "forge",
+  "version": "1.0.0",
+  "description": "Dynamic agent orchestrator that adapts to task complexity. Simple tasks get a single agent, complex tasks get the full swarm with TMUX dashboard. Token-efficient, staff-engineer-level agents, asks all questions upfront, runs autonomously.",
+  "author": {
+    "name": "BhaveshY"
+  },
+  "license": "MIT",
+  "keywords": [
+    "orchestrator",
+    "agent-swarm",
+    "dynamic-routing",
+    "complexity-routing",
+    "autonomous",
+    "tmux-dashboard",
+    "staff-engineer",
+    "code-review",
+    "architecture",
+    "compound-learning"
+  ]
+}
