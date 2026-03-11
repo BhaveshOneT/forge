@@ -36,6 +36,9 @@ TIER=$(python3 -c "import json; print(json.load(open('$STATE_FILE'))['tier'])" 2
 LOOP=$(python3 -c "import json; print(json.load(open('$STATE_FILE'))['build_review_loop'])" 2>/dev/null)
 CHECKPOINT=$(python3 -c "import json; print(json.load(open('$STATE_FILE')).get('checkpoint', 'unknown'))" 2>/dev/null)
 SESSION_ID=$(python3 -c "import json; print(json.load(open('$STATE_FILE'))['session_id'])" 2>/dev/null)
+SOURCE=$(python3 -c "import json; print(json.load(open('$STATE_FILE')).get('source', ''))" 2>/dev/null)
+JIRA_KEY=$(python3 -c "import json; print(json.load(open('$STATE_FILE')).get('jira_issue_key', ''))" 2>/dev/null)
+WORKTREE_PATH=$(python3 -c "import json; print(json.load(open('$STATE_FILE')).get('worktree_path', ''))" 2>/dev/null)
 
 # Capture last 20 lines of decisions for context
 RECENT_DECISIONS=""
@@ -60,6 +63,9 @@ cat > "$RECOVERY_FILE" << EOF
 **Total backtracks**: $BACKTRACKS
 **Build-Review loop**: $LOOP
 **Checkpoint**: $CHECKPOINT
+**Source**: $SOURCE
+**Jira Issue**: $JIRA_KEY
+**Worktree**: $WORKTREE_PATH
 
 ## Recovery Instructions
 
@@ -70,6 +76,7 @@ You are The Forge Manager. Context was compacted. Resume your work:
 3. You were in the **$PHASE** phase (attempt $ATTEMPT), Tier $TIER
 4. Resume from where you left off — do NOT restart the pipeline
 5. Read context/decisions.md and context/loop-learnings.md for accumulated knowledge
+6. If source is jira, also read skills/jira-adapter/SKILL.md and jira-context.json. Work in worktree at $WORKTREE_PATH.
 
 ## Recent Decisions
 $RECENT_DECISIONS

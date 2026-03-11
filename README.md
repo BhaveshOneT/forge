@@ -23,6 +23,8 @@ git clone https://github.com/BhaveshY/forge.git ~/.claude/plugins/forge
 | Command | Description |
 |---------|-------------|
 | `/forge "<task>"` | Start a new task |
+| `/forge:jira PROJ-123` | Build from a Jira issue |
+| `/forge:jira-sync` | Auto-pick highest-priority ready issue |
 | `/forge:resume` | Resume an interrupted session |
 | `/forge:status` | Show session status |
 
@@ -81,6 +83,127 @@ VERIFY fail    → re-BUILD or revise ARCHITECT
 
 Safety limits: max 2 retries per target, max 8 total backtracks.
 
+## Jira Integration
+
+Close the loop: **Jira defines WHAT to build** → **Confluence provides context** → **Forge does the work** → **GitHub gets a PR** → **Jira gets updated**. All autonomous. You never leave Jira.
+
+### Prerequisites
+
+1. Set up the Atlassian MCP server:
+   ```bash
+   claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse
+   ```
+2. Initialize config:
+   ```bash
+   bash ~/.claude/plugins/forge/scripts/jira-config-init.sh
+   ```
+3. Edit `~/.claude/forge/config.json` with your `cloud_id`, `site_url`, and `default_project`
+
+### Usage
+
+```
+/forge:jira PROJ-123                    → Fetch issue → enrich → build → PR → update Jira
+/forge:jira-sync                        → Auto-pick highest-priority ready issue from board
+```
+
+### Flow
+
+```
+/forge:jira PROJ-123
+    │
+    ▼
+JIRA_FETCH (getJiraIssue) → jira-context.json
+    │
+    ▼
+CONFLUENCE_ENRICH (getConfluencePage, searchConfluenceUsingCql) → confluence-context.md
+    │
+    ▼
+SYNTHESIZE → requirements.md (with smart grilling reduction)
+    │
+    ▼
+[existing pipeline: CLASSIFY → EXPLORE → BUILD → REVIEW → ...]
+    │
+    ▼
+SHIP → git push + gh pr create + jira_add_comment + jira_transition_issue
+    │
+    ▼
+COMPOUND → session-summary.md + memory + clean up worktree
+```
+
+### Smart Grilling Reduction
+
+Since the user already wrote the Jira ticket, Forge reduces redundant questions:
+
+| Condition | Questions Asked |
+|-----------|----------------|
+| Has acceptance criteria + Confluence/rich description | 0-1 (minimal) |
+| Basic description only | Tier defaults (standard) |
+| Epic with subtasks | 1 — confirm which subtasks to implement |
+
+### Configuration
+
+Config lives at `~/.claude/forge/config.json`:
+
+| Section | Key Fields |
+|---------|------------|
+| `atlassian` | `cloud_id`, `site_url` |
+| `jira` | `default_project`, `ready_statuses`, `auto_transition`, `branch_prefix` |
+| `confluence` | `default_space_key`, `fetch_linked_pages`, `max_child_depth` |
+| `github` | `default_base_branch`, `pr_draft`, `pr_labels`, `pr_reviewers` |
+| `sync` | `mode` (single/continuous), `max_issues_per_run`, `priority_order` |
+
+## Mandatory Web Research (Parallel CLI)
+
+Every Tier 2+ session uses [Parallel CLI](https://docs.parallel.ai/integrations/cli) for web research. No more stale training data — agents verify everything against live web results.
+
+### Setup
+
+```bash
+bash ~/.claude/plugins/forge/scripts/parallel-setup.sh
+```
+
+This installs `parallel-cli`, adds both MCP servers (Search + Task), and verifies auth.
+
+### How It Works
+
+| Agent | What Gets Searched | Tool |
+|-------|--------------------|------|
+| **Explorer** | Framework docs, dependency versions, known issues | Parallel Search MCP |
+| **Architect** | Official docs, comparisons, OWASP, security | Parallel Search MCP + Task MCP |
+| **Builder** | Current API docs, auth patterns, error solutions | Parallel Search MCP |
+| **Reviewer** | Security best practices, known vulnerabilities | Parallel Search MCP |
+
+### Tools (Priority Order)
+
+1. **Parallel Search MCP** (`search-mcp.parallel.ai/mcp`) — low-latency, agent-optimized
+2. **Parallel Task MCP** (`task-mcp.parallel.ai/mcp`) — deep research, async
+3. **`parallel-cli search`** via Bash — fallback
+4. **WebSearch / Context7** — last resort
+
+All research findings are documented with real URLs in `context/decisions.md`.
+
+## Git Worktree Isolation
+
+All Tier 2 & 3 sessions run in isolated git worktrees. Main branch is never modified during work — only SHIP creates the PR.
+
+### Why Worktrees
+
+- **Peace of mind**: Main branch untouched until PR merge
+- **Parallel safety**: Tier 3 parallel agents can't conflict
+- **Easy abort**: If session fails, just delete the worktree
+- **Multi-issue**: Each Jira issue gets its own isolated workspace
+
+### Lifecycle
+
+```
+Session Init → git worktree add ~/.claude/forge/worktrees/<id> -b forge/<branch>
+During Work  → All agents operate in worktree directory
+SHIP         → git push from worktree, gh pr create
+COMPOUND     → git worktree remove, branch kept for PR
+```
+
+Tier 1 (simple tasks, 0-3 complexity) skips worktrees — overhead isn't worth it for single-file fixes.
+
 ## TMUX Dashboard (Tier 3)
 
 Inside tmux, a two-column dashboard shows pipeline progress and agent status:
@@ -118,6 +241,9 @@ Forge survives Claude Code context compaction:
 ~/.claude/forge/sessions/<id>/
 ├── forge-state.json          # Pipeline state machine
 ├── requirements.md           # Grilling output
+├── jira-context.json         # Raw Jira issue data (Jira sessions)
+├── confluence-context.md     # Extracted Confluence content (Jira sessions)
+├── ship-result.json          # Branch, PR URL, Jira status (Jira sessions)
 ├── plan.md                   # Architect output (Tier 3)
 ├── contracts/                # Shared types (Tier 3)
 ├── context/

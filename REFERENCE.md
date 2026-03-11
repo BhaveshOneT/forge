@@ -218,7 +218,8 @@ Write issues to: {session_dir}/review-issues-alignment.json
 1. Write `session-summary.md` from template
 2. Extract learnings to `~/.claude/forge/memory/MEMORY.md`
 3. Tear down TMUX if active
-4. Mark session complete
+4. Clean up worktree (Tier 2 & 3): `bash scripts/worktree-teardown.sh <session-id>`, set `worktree_cleaned: true` in forge-state.json
+5. Mark session complete
 
 ---
 
@@ -286,10 +287,60 @@ BUILD backtrack      → re-run REVIEW → VERIFY
 
 | Agent | Metrics |
 |-------|---------|
-| Explorer | Files analyzed, patterns documented, conventions found |
-| Architect | tier1_sources≥1 (0.4) + contracts_defined (0.3) + alternatives_compared (0.2) + risks_documented (0.1) |
+| Explorer | Files analyzed, patterns documented, conventions found, **web research performed** |
+| Architect | tier1_sources≥1 (0.4) + contracts_defined (0.3) + alternatives_compared (0.2) + risks_documented (0.1). **All citations must be real URLs from Parallel search.** |
 | Builder | Compiles, tests pass, follows contracts, matches plan task |
 | Reviewer | Issue count by severity (independently counted), confidence ≥80 only |
+
+---
+
+## Mandatory Web Research Protocol (Parallel CLI)
+
+All Tier 2 & 3 sessions MUST use web research via Parallel. Full protocol in `skills/parallel-research/SKILL.md`.
+
+### Tools (priority order)
+
+1. **Parallel Search MCP** — `https://search-mcp.parallel.ai/mcp` — low-latency, optimized for agents
+2. **Parallel Task MCP** — `https://task-mcp.parallel.ai/mcp` — deep research, async, enrichment
+3. **`parallel-cli search`** — via Bash tool, fallback when MCP unavailable
+4. **WebSearch / Context7** — last resort
+
+### Per-Agent Requirements
+
+| Agent | Minimum Research | What to Search |
+|-------|-----------------|---------------|
+| Explorer | ≥1 search per session | Framework docs, dependency versions, known issues |
+| Architect | ≥1 search per technology decision | Official docs, comparisons, OWASP, best practices |
+| Builder | Before every external API/unfamiliar library | Current API docs, auth patterns, error solutions |
+| Reviewer | Security-sensitive code | Current best practices, known vulnerabilities |
+
+### Agent Dispatch Addition
+
+When dispatching any agent in Tier 2+, append to the prompt:
+```
+Web research is MANDATORY. Use Parallel Search MCP for up-to-date information.
+Fallback: parallel-cli search via Bash, then WebSearch.
+Read skills/parallel-research/SKILL.md for the full protocol.
+Document all research in context/decisions.md with real URLs.
+```
+
+### Research Output Format
+
+```markdown
+### Web Research: [Topic]
+**Query**: [what was searched]
+**Source**: [URL]
+**Finding**: [key takeaway]
+**Impact**: [how this affects the implementation]
+```
+
+### Setup
+
+```bash
+bash scripts/parallel-setup.sh
+```
+
+Installs CLI, adds both MCP servers, verifies authentication.
 
 ---
 
@@ -315,6 +366,140 @@ BUILD backtrack      → re-run REVIEW → VERIFY
   "build_tasks": [],
   "active_agents": [],
   "checkpoint": "Building task 2 of 4...",
-  "tmux_active": false
+  "tmux_active": false,
+
+  // --- Worktree fields (Tier 2 & 3) ---
+  "worktree_path": "~/.claude/forge/worktrees/forge-20260311-143022",
+  "worktree_branch": "forge/PROJ-123-add-user-auth",
+  "worktree_created": true,
+  "worktree_cleaned": false,
+
+  // --- Jira fields (source == "jira" only) ---
+  "source": "jira",
+  "jira_issue_key": "PROJ-123",
+  "jira_issue_type": "Story",
+  "jira_priority": "High",
+  "grilling_override": "minimal",
+  "ship_result": {
+    "branch": "forge/PROJ-123-add-user-auth",
+    "pr_url": "https://github.com/org/repo/pull/42",
+    "pr_number": 42,
+    "jira_comment_added": true,
+    "jira_transitioned": true
+  }
 }
+```
+
+---
+
+## Git Worktree Lifecycle Protocol
+
+### Setup (Session Initialization)
+
+Tier 2 & 3 sessions create an isolated worktree:
+
+```bash
+# Create worktree for session
+bash scripts/worktree-setup.sh <session-id> <branch-name> <base-branch>
+# Output: WORKTREE_PATH=~/.claude/forge/worktrees/<session-id>
+```
+
+- **Branch naming**: `forge/<session-id>` (normal) or `forge/<ISSUE-KEY>-<slug>` (Jira)
+- **Base branch**: from `config.github.default_base_branch` (default: `main`)
+- All agents receive the worktree path as `project_dir`
+
+### Agent Dispatch with Worktrees
+
+All agent dispatch templates use `{project_dir}` which points to the worktree. For Tier 3 parallel agents, also set `isolation: "worktree"` in the Agent tool call for sub-isolation.
+
+### Teardown (COMPOUND Phase)
+
+```bash
+# Clean up worktree after session
+bash scripts/worktree-teardown.sh <session-id>
+# Removes worktree dir. Keeps branch if PR exists, deletes if not.
+```
+
+### Abort/Failure Cleanup
+
+```bash
+# Force remove on failure
+bash scripts/worktree-teardown.sh <session-id> --force
+```
+
+---
+
+## Jira Adapter Phase Protocols
+
+These phases are defined in `skills/jira-adapter/SKILL.md`. The Manager executes them directly (no subagent).
+
+### Phase: JIRA_FETCH (state key: `jira_fetch`)
+
+**Action**: Manager calls Atlassian MCP tools directly.
+
+```
+1. getAccessibleAtlassianResources() → cloudId (cached after first call)
+2. getJiraIssue(cloudId, issueKey) → issue data
+3. getJiraIssueRemoteIssueLinks(cloudId, issueKey) → linked Confluence pages
+4. [If Epic] searchJiraIssuesUsingJql(cloudId, "'Epic Link' = KEY") → child stories
+```
+
+**Output**: `{session_dir}/jira-context.json`
+**Gate**: jira-context.json has summary + description + issue_type
+
+### Phase: CONFLUENCE_ENRICH (state key: `confluence_enrich`)
+
+**Action**: Manager calls Atlassian MCP tools directly.
+
+```
+1. [Per linked page] getConfluencePage(cloudId, pageId)
+2. [Per page] getConfluencePageDescendants(cloudId, pageId, depth=1)
+3. [Fallback] searchConfluenceUsingCql(cloudId, "type=page AND space=KEY AND title~'...'")
+```
+
+**Output**: `{session_dir}/confluence-context.md`
+**Gate**: Always passes (no Confluence is acceptable)
+
+### Phase: SYNTHESIZE (state key: `synthesize`)
+
+**Action**: Manager merges Jira + Confluence into requirements.md.
+
+Uses `templates/jira-requirements.md`. Sets `grilling_override` in forge-state.json:
+- `"minimal"` (0-1 Qs): has acceptance criteria + rich description/Confluence
+- `"standard"`: basic description only
+- `"confirm_scope"` (1 Q): epic with subtasks
+
+**Output**: `{session_dir}/requirements.md`
+**Gate**: requirements.md has ≥1 functional requirement
+
+### Phase: SHIP (state key: `ship`)
+
+**Action**: Manager pushes branch, creates PR, updates Jira.
+
+```
+1. Ensure all changes committed on worktree branch
+2. git push -u origin <branch>
+3. gh pr create --title "[KEY] summary" --body "..." --base <base_branch>
+4. addCommentToJiraIssue(cloudId, issueKey, "PR: <url>")
+5. getTransitionsForJiraIssue(cloudId, issueKey) → find "In Review"
+6. transitionJiraIssue(cloudId, issueKey, {id: transition_id})
+```
+
+**Output**: `{session_dir}/ship-result.json`
+**Gate**: PR created (URL in ship-result.json). Jira updates are best-effort.
+
+---
+
+## Extended Backtrack Matrix (Jira Phases)
+
+```
+FAILURE POINT      | FAILURE TYPE              | BACKTRACK TARGET
+───────────────────┼───────────────────────────┼──────────────────
+JIRA_FETCH         | Issue not found           | → USER (abort)
+JIRA_FETCH         | Auth failure              | → USER (fix MCP config)
+CONFLUENCE_ENRICH  | Page fetch failed          | → SKIP (non-blocking)
+SYNTHESIZE         | Insufficient context       | → USER (add requirements)
+SHIP               | Branch conflict            | → SHIP (retry with suffix)
+SHIP               | PR creation failed         | → USER (manual PR)
+SHIP               | Jira transition fail       | → LOG (non-blocking)
 ```

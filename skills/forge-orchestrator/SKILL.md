@@ -46,6 +46,10 @@ Score the request on 4 signals (0/2/4 points each):
 4. Initialize `forge-state.json`
 5. Detect project type (greenfield vs brownfield)
 6. Set `project_dir` to current working directory
+7. **Create worktree** (Tier 2 & 3 only — see "Git Worktree Isolation" section above):
+   - Run `scripts/worktree-setup.sh` to create isolated working directory
+   - Update `project_dir` in forge-state.json to the worktree path
+   - All agents will work in the worktree, not the original directory
 
 ## Grilling Strategy (Manager handles directly)
 
@@ -58,6 +62,86 @@ Score the request on 4 signals (0/2/4 points each):
 | 3 (vague) | 5-8 | Comprehensive: scope, features, auth, persistence, deploy |
 
 **CRITICAL**: ALL questions in ONE `AskUserQuestion` call. After user responds, write `requirements.md`. The pipeline NEVER asks the user again (except safety limit escalation).
+
+### Grilling Override (Jira-driven sessions)
+
+When `grilling_override` is set in `forge-state.json` (from Jira adapter's SYNTHESIZE phase), reduce questions:
+- `"minimal"` → 0-1 questions regardless of tier (Jira issue had acceptance criteria + rich context)
+- `"standard"` → use normal tier defaults above
+- `"confirm_scope"` → 1 question confirming which subtasks to implement (epic with subtasks)
+
+The user already wrote the Jira ticket — don't re-ask what they already specified.
+
+## Git Worktree Isolation (Tier 2 & 3)
+
+All Tier 2 and Tier 3 sessions run in an isolated git worktree. Main branch is never modified — only SHIP creates the PR.
+
+### Session Initialization with Worktree
+
+For Tier 2 & 3, after generating the session ID:
+
+1. Determine branch name:
+   - Jira source: `forge/<ISSUE-KEY>-<slug>` (e.g., `forge/PROJ-123-add-user-auth`)
+   - Normal source: `forge/<session-id>`
+2. Create worktree: `bash scripts/worktree-setup.sh <session-id> <branch-name> <base-branch>`
+   - Base branch from `config.github.default_base_branch` (default: `main`)
+   - Worktree created at: `~/.claude/forge/worktrees/<session-id>/`
+3. Set in `forge-state.json`:
+   - `project_dir` → worktree path (NOT the original cwd)
+   - `worktree_path` → `~/.claude/forge/worktrees/<session-id>`
+   - `worktree_branch` → the branch name
+   - `worktree_created` → `true`
+   - `worktree_cleaned` → `false`
+4. ALL subsequent agents work in the worktree directory (passed via `project_dir`)
+
+### Parallel Agent Isolation (Tier 3)
+
+For Tier 3 parallel agents (2× Explorer, 2× Reviewer), dispatch with `isolation: "worktree"` in the Agent tool call. This creates sub-worktrees off the session branch for additional safety.
+
+### Worktree Cleanup (COMPOUND phase)
+
+During COMPOUND, after writing session-summary.md:
+1. Run: `bash scripts/worktree-teardown.sh <session-id>`
+2. Set `worktree_cleaned: true` in `forge-state.json`
+3. Branch is kept (it's the PR branch) unless no PR was created
+
+### Tier 1 Exception
+
+Tier 1 (0-3 complexity) does NOT use worktrees. Manager executes directly in cwd. Worktree overhead isn't worth it for single-file fixes.
+
+## Jira-Driven Execution
+
+When `source == "jira"` in `forge-state.json` (set by `/forge:jira` command):
+
+1. Read `skills/jira-adapter/SKILL.md` for the 4 integration phases
+2. The pipeline becomes:
+   ```
+   JIRA_FETCH → CONFLUENCE_ENRICH → SYNTHESIZE → CLASSIFY → [normal tier pipeline] → SHIP → COMPOUND
+   ```
+3. JIRA_FETCH, CONFLUENCE_ENRICH, and SYNTHESIZE run BEFORE classification (they produce the requirements)
+4. SHIP runs AFTER the last review/verify phase and BEFORE COMPOUND
+5. COMPOUND includes worktree cleanup via `scripts/worktree-teardown.sh`
+6. Jira-specific artifacts: `jira-context.json`, `confluence-context.md`, `ship-result.json`
+
+The core pipeline (CLASSIFY → EXPLORE → BUILD → REVIEW → VERIFY) is unchanged.
+
+## Mandatory Web Research (Parallel CLI)
+
+**ALL Tier 2 and Tier 3 sessions MUST use web research.** Read `skills/parallel-research/SKILL.md` for the full protocol.
+
+**Tools** (in priority order):
+1. **Parallel Search MCP** (`search-mcp.parallel.ai/mcp`) — low-latency agent search
+2. **Parallel Task MCP** (`task-mcp.parallel.ai/mcp`) — deep research tasks
+3. **`parallel-cli search`** via Bash — fallback if MCP unavailable
+4. **WebSearch** / **Context7** — last resort
+
+**Requirements**:
+- Explorer: at least 1 search per session (framework docs, dependency versions)
+- Architect: search for EVERY technology decision (citations must be real URLs, not training recall)
+- Builder: search before any external API call or unfamiliar library usage
+- Reviewer: search for security-sensitive code patterns
+
+When dispatching agents, include this instruction: "Use Parallel Search MCP for mandatory web research. See skills/parallel-research/SKILL.md for protocol."
 
 ## Phase Execution Protocol
 

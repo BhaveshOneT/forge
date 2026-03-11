@@ -33,7 +33,18 @@ request = s.get('user_request', '')[:55]
 agents = s.get('active_agents', [])
 build_tasks = s.get('build_tasks', [])
 
-phases = ['grill', 'explore', 'architect', 'build', 'review', 'verify']
+source = s.get('source', '')
+jira_key = s.get('jira_issue_key', '')
+if source == 'jira':
+    if tier == 3:
+        phases = ['jira_fetch', 'confluence_enrich', 'synthesize', 'classify', 'grill', 'explore', 'architect', 'build', 'review', 'verify', 'ship']
+    else:
+        phases = ['jira_fetch', 'confluence_enrich', 'synthesize', 'classify', 'grill', 'explore', 'build', 'review', 'ship']
+else:
+    if tier == 3:
+        phases = ['classify', 'grill', 'explore', 'architect', 'build', 'review', 'verify']
+    else:
+        phases = ['classify', 'grill', 'explore', 'build', 'review']
 history = {h['phase']: h for h in s.get('phase_history', [])}
 
 confidence = 0.0
@@ -48,7 +59,7 @@ model = 'opus/4'
 
 # Top border + header
 print('┌' + '─' * (W - 2) + '┐')
-hdr = f' FORGE: {sid}'
+hdr = f' FORGE: {f"[{jira_key}] " if jira_key else ""}{sid}'
 print(f'│{hdr:<{W-2-len(model)-1}}{model} │')
 task_line = f' Task: "{request}"'
 print(f'│{task_line:<{W-2}}│')
@@ -101,5 +112,10 @@ if checkpoint and checkpoint != 'None':
     print(f'│{ckpt:<{W-2}}│')
 else:
     print(f'│{" " * (W-2)}│')
+ship = s.get('ship_result', {})
+pr_url = ship.get('pr_url', '')
+if pr_url:
+    pr_line = f' PR: {pr_url}'[:W-3]
+    print(f'│{pr_line:<{W-2}}│')
 print('└' + '─' * (W - 2) + '┘')
 PYEOF
