@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Forge Studio Layout",
+  "type": "object",
+  "required": [
+    "session_name",
+    "layout_mode",
+    "project_dir",
+    "panes"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "session_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "layout_mode": {
+      "type": "string",
+      "enum": ["focus", "build", "swarm"]
+    },
+    "project_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "panes": {
+      "type": "object",
+      "required": ["main", "git", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "main": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

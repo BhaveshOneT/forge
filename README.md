@@ -1,6 +1,6 @@
 # Forge — Dynamic Agent Orchestrator
 
-A Claude Code plugin that adapts to task complexity. Simple tasks get direct execution, medium tasks get 3 agents, complex tasks get the full swarm with a TMUX dashboard.
+A Claude Code plugin that adapts to task complexity and launches Forge Studio, a tmux-based terminal IDE workspace, for every run.
 
 ## Mental Model
 
@@ -14,11 +14,11 @@ user request
 | CLASSIFY  | clarity + scope + keywords + repo size
 +-----------+
     |
-    +--> Tier 1: manager executes directly
+    +--> Tier 1: manager executes directly in Forge Studio focus mode
     |
-    +--> Tier 2: Explorer -> Builder -> Reviewer
+    +--> Tier 2: Explorer -> Builder -> Reviewer in Forge Studio build mode
     |
-    `--> Tier 3: Explorer x2 -> Architect -> Builder -> Reviewer x2 -> Verify
+    `--> Tier 3: Explorer x2 -> Architect -> Builder -> Reviewer x2 -> Verify in Forge Studio swarm mode
 ```
 
 ## Installation
@@ -28,6 +28,16 @@ user request
 # Or manually:
 git clone https://github.com/BhaveshOneT/forge.git ~/.claude/plugins/forge
 ```
+
+### Required Tools
+
+Forge Studio requires:
+- `tmux`
+- `lazygit`
+- `bash`
+- `python3`
+
+If any of these are missing, Forge Studio refuses to start. There is no degraded non-tmux mode.
 
 ### Hook Layout
 
@@ -56,9 +66,9 @@ bash ~/.claude/plugins/forge/scripts/setup-hooks.sh
 ## Usage
 
 ```
-/forge "fix the typo in the README"           → Tier 1: direct execution
-/forge "add user authentication to the API"   → Tier 2: Explorer → Builder → Reviewer
-/forge "build a real-time chat system"         → Tier 3: full swarm + TMUX dashboard
+/forge "fix the typo in the README"            → Tier 1: Forge Studio focus mode
+/forge "add user authentication to the API"    → Tier 2: Forge Studio build mode
+/forge "build a real-time chat system"         → Tier 3: Forge Studio swarm mode
 ```
 
 ### Commands
@@ -77,16 +87,17 @@ bash ~/.claude/plugins/forge/scripts/setup-hooks.sh
 
 Every request is classified on 4 signals (clarity, scope, keywords, project state) scored 0-16:
 
-| Tier | Score | Agents | TMUX | Session |
-|------|-------|--------|------|---------|
-| **Simple** | 0-3 | 0 | No | No |
-| **Medium** | 4-8 | 3 (sequential) | No | Yes |
-| **Complex** | 9+ | 6 (parallel) | Yes | Yes |
+| Tier | Score | Agents | Studio Mode | Session |
+|------|-------|--------|-------------|---------|
+| **Simple** | 0-3 | 0 | Focus | No |
+| **Medium** | 4-8 | 3 (sequential) | Build | Yes |
+| **Complex** | 9+ | 6 (parallel) | Swarm | Yes |
 
 ```text
 score 0-3       score 4-8                 score 9-16
    |               |                          |
  Tier 1          Tier 2                     Tier 3
+ Studio focus    Studio build              Studio swarm
  direct          explore -> build ->       explore -> architect
  execution       review                    -> build -> review -> verify
 ```
@@ -273,9 +284,62 @@ repo/main
 
 Tier 1 (simple tasks, 0-3 complexity) skips worktrees — overhead isn't worth it for single-file fixes.
 
-## TMUX Dashboard (Tier 3)
+## Forge Studio
 
-Inside tmux, a two-column dashboard shows pipeline progress and agent status:
+Forge Studio is the default tmux workspace for every Forge run.
+
+```text
++--------------------------------------------------------------+
+| Main Claude / active Forge interaction                       |
+|                                                              |
+|                                                              |
++--------------------------------------+-----------------------+
+| Forge Studio status + activity       | lazygit               |
+| phase / loops / gates / logs         | git status / diff     |
+| current task / artifacts / hints     | staged/unstaged view  |
++--------------------------------------+-----------------------+
+```
+
+Tier 1 layout:
+
+```text
++--------------------------------------------------------------+
+| Claude / Forge interaction                                   |
++--------------------------------------+-----------------------+
+| compact status + artifacts           | lazygit               |
++--------------------------------------+-----------------------+
+```
+
+Tier 2 layout:
+
+```text
++--------------------------------------------------------------+
+| Claude / active build-review loop                            |
++--------------------------------------+-----------------------+
+| loop status + gates + artifacts      | lazygit               |
++--------------------------------------+-----------------------+
+```
+
+Tier 3 layout:
+
+```text
++--------------------------------------------------------------+
+| Claude / multi-agent orchestration                           |
++--------------------------------------+-----------------------+
+| swarm status + agents + verify       | lazygit               |
++--------------------------------------+-----------------------+
+```
+
+Studio popup map:
+
+```text
+prefix+r requirements   prefix+p plan        prefix+i review issues
+prefix+d decisions      prefix+l learnings   prefix+e exploration
+prefix+v verify         prefix+g git focus   prefix+s status focus
+prefix+c main focus     prefix+m mode toggle prefix+? help
+```
+
+Status pane example:
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -296,7 +360,7 @@ Inside tmux, a two-column dashboard shows pipeline progress and agent status:
 └──────────────────────────────────────────────────────────────┘
 ```
 
-Outside tmux, inline status lines are printed after each phase.
+The workspace persists after completion so you can review changes, logs, and artifacts before closing it.
 
 ## Compaction Resilience
 
@@ -322,7 +386,9 @@ The runtime safety story is deliberately small and mechanical:
 - `scripts/destructive-guard.sh` blocks obviously destructive Bash tool calls before execution.
 - Tier 2 and Tier 3 sessions work in git worktrees rather than the main checkout.
 - Recovery always re-reads `forge-state.json`; chat memory is not the source of truth.
-- TMUX cleanup records the Forge pane id so teardown only targets the dashboard pane.
+- Forge Studio owns a dedicated tmux session per Forge run and keeps pane metadata in session state.
+- `scripts/studio-check-deps.sh` hard-fails early when required tools are missing.
+- `scripts/tmux-teardown.sh` destroys only the explicit Forge Studio session you target.
 - `tests/run.sh` exercises the shell behaviors most likely to regress.
 - `scripts/validate-state.sh` and `scripts/check-phase-gate.sh` make the manager validate key artifacts instead of trusting prompt prose alone.
 
@@ -343,6 +409,9 @@ The runtime safety story is deliberately small and mechanical:
 │   └── loop-learnings.md     # Per-iteration learnings
 ├── diagnostics/
 │   └── backtrack-NNN.json    # Failure diagnostics
+├── studio-layout.json        # Forge Studio pane + mode metadata
+├── studio-help.txt           # Keybindings and workspace help
+├── studio-activity.log       # Compact live activity summary
 └── session-summary.md        # Written at completion
 ```
 

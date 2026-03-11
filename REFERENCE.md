@@ -25,7 +25,8 @@ This is the shortest accurate description of how Forge runs.
   `--> COMPOUND
          write summary
          extract memory
-         tear down tmux/worktree
+         keep Forge Studio alive
+         clean worktree if needed
 ```
 
 ## State Ownership
@@ -36,9 +37,31 @@ requirements.md           accepted scope and constraints
 context/decisions.md      why choices were made
 context/patterns.md       conventions discovered during exploration
 context/loop-learnings.md lessons from each build/review cycle
+studio-layout.json        Studio pane metadata and mode
 ```
 
 Recovery rule: files are truth, conversation is cache.
+
+## Forge Studio
+
+Forge Studio is the default tmux workspace for every tier.
+
+```text
+dependencies -> studio-check-deps.sh
+session      -> tmux-setup.sh / studio-session.sh
+layout       -> studio-layout.sh
+status pane  -> tmux-render.sh + studio-activity.sh
+popups       -> studio-popup.sh
+cleanup      -> tmux-teardown.sh
+```
+
+Runtime requirements:
+- `tmux`
+- `lazygit`
+- `bash`
+- `python3`
+
+There is no degraded non-Studio mode.
 
 ## Enforced Checks
 
@@ -293,7 +316,7 @@ Write issues to: {session_dir}/review-issues-alignment.json
 **Action**: Manager runs directly:
 1. Write `session-summary.md` from template
 2. Extract learnings to `~/.claude/forge/memory/MEMORY.md`
-3. Tear down TMUX if active
+3. Mark Forge Studio complete but keep the workspace alive
 4. Clean up worktree (Tier 2 & 3): `bash scripts/worktree-teardown.sh <session-id>`, set `worktree_cleaned: true` in forge-state.json
 5. Mark session complete
 
@@ -302,7 +325,7 @@ COMPOUND
    |
    +--> write session-summary.md
    +--> append distilled learnings to memory
-   +--> tear down tmux dashboard
+   +--> leave Forge Studio alive for inspection
    `--> remove worktree if one was created
 ```
 
@@ -333,15 +356,6 @@ VERIFY         | Requirement not met        | → ARCHITECT (revise)
 
 Backtracking to an earlier phase re-runs all subsequent phases:
 ```
-
-## Jira Artifact Gates
-
-```text
-JIRA_FETCH         -> jira-context.json      -> check-phase-gate.sh jira_fetch
-CONFLUENCE_ENRICH  -> confluence-context.md  -> check-phase-gate.sh confluence_enrich
-SYNTHESIZE         -> requirements.md        -> check-phase-gate.sh synthesize
-SHIP               -> ship-result.json       -> check-phase-gate.sh ship
-```
 EXPLORE fail
    |
    `--> EXPLORE -> ARCHITECT -> BUILD -> REVIEW -> VERIFY
@@ -353,6 +367,15 @@ ARCHITECT fail
 BUILD fail
    |
    `--> BUILD -> REVIEW -> VERIFY
+```
+
+## Jira Artifact Gates
+
+```text
+JIRA_FETCH         -> jira-context.json      -> check-phase-gate.sh jira_fetch
+CONFLUENCE_ENRICH  -> confluence-context.md  -> check-phase-gate.sh confluence_enrich
+SYNTHESIZE         -> requirements.md        -> check-phase-gate.sh synthesize
+SHIP               -> ship-result.json       -> check-phase-gate.sh ship
 ```
 
 ### Safety Limits

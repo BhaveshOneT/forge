@@ -12,17 +12,65 @@ fail() {
 assert_contains() {
   local haystack="${1:?haystack required}"
   local needle="${2:?needle required}"
-
   [[ "$haystack" == *"$needle"* ]] || fail "expected to find '$needle'"
+}
+
+assert_not_contains() {
+  local haystack="${1:?haystack required}"
+  local needle="${2:?needle required}"
+  [[ "$haystack" != *"$needle"* ]] || fail "did not expect to find '$needle'"
 }
 
 assert_file_contains() {
   local file_path="${1:?file path required}"
   local needle="${2:?needle required}"
+  assert_contains "$(cat "$file_path")" "$needle"
+}
 
-  local content
-  content="$(cat "$file_path")"
-  assert_contains "$content" "$needle"
+write_state() {
+  local file_path="${1:?file path required}"
+  local session_id="${2:?session id required}"
+  local phase="${3:?phase required}"
+  local checkpoint="${4:-resume me}"
+
+  cat >"$file_path" <<EOF
+{
+  "session_id": "$session_id",
+  "current_phase": "$phase",
+  "phase_attempt": 1,
+  "total_backtracks": 0,
+  "tier": 2,
+  "build_review_loop": 0,
+  "checkpoint": "$checkpoint",
+  "source": "",
+  "jira_issue_key": "",
+  "worktree_path": ""
+}
+EOF
+}
+
+set_state_field() {
+  local file_path="${1:?file path required}"
+  local python_update="${2:?python update required}"
+
+  python3 - "$file_path" "$python_update" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+update = sys.argv[2]
+
+with open(path, encoding="utf-8") as handle:
+    data = json.load(handle)
+
+namespace = {"data": data}
+exec(update, {"__builtins__": {}}, namespace)
+data = namespace["data"]
+
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(data, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
 }
 
 run_destructive_guard_tests() {
@@ -49,30 +97,8 @@ run_destructive_guard_tests() {
   rm -f "$stdout_file" "$stderr_file"
 }
 
-write_state() {
-  local file_path="${1:?file path required}"
-  local session_id="${2:?session id required}"
-  local phase="${3:?phase required}"
-  local checkpoint="${4:-resume me}"
-
-  cat >"$file_path" <<EOF
-{
-  "session_id": "$session_id",
-  "current_phase": "$phase",
-  "phase_attempt": 1,
-  "total_backtracks": 0,
-  "tier": 2,
-  "build_review_loop": 0,
-  "checkpoint": "$checkpoint",
-  "source": "",
-  "jira_issue_key": "",
-  "worktree_path": ""
-}
-EOF
-}
-
 run_recovery_tests() {
-  local tmp_home sessions_dir older newer output
+  local tmp_home sessions_dir output
   tmp_home="$(mktemp -d)"
   trap 'rm -rf "$tmp_home"' RETURN
   export HOME="$tmp_home"
@@ -100,7 +126,7 @@ run_recovery_tests() {
 }
 
 run_worktree_tests() {
-  local tmp_root repo_home repo_dir parent_dir session_id branch_name
+  local tmp_root repo_home repo_dir parent_dir session_id branch_name status
   tmp_root="$(mktemp -d)"
   trap 'rm -rf "$tmp_root"' RETURN
   repo_home="$tmp_root/home"
@@ -137,7 +163,7 @@ run_worktree_tests() {
 
   set +e
   bash "$ROOT_DIR/scripts/worktree-teardown.sh" "../escape" >/dev/null 2>&1
-  local status=$?
+  status=$?
   set -e
   [ "$status" -ne 0 ] || fail "worktree teardown should reject unsafe session ids"
 
@@ -145,36 +171,15 @@ run_worktree_tests() {
   rm -rf "$tmp_root"
 }
 
-run_metadata_tests() {
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.2.0"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.2.0"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
-  assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
-  assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'
-}
-
 run_validation_tests() {
-  local tmp_root session_dir build_result
+  local tmp_root session_dir
   tmp_root="$(mktemp -d)"
   trap 'rm -rf "$tmp_root"' RETURN
   session_dir="$tmp_root/session"
   mkdir -p "$session_dir/context" "$session_dir/contracts"
 
   write_state "$session_dir/forge-state.json" "forge-20260311-140000" "verify" "validate"
-  python3 - "$session_dir/forge-state.json" <<'PY'
-import json
-import sys
-
-path = sys.argv[1]
-with open(path, encoding="utf-8") as handle:
-    data = json.load(handle)
-
-data["complexity_score"] = 8
-data["project_type"] = "brownfield"
-
-with open(path, "w", encoding="utf-8") as handle:
-    json.dump(data, handle)
-PY
+  set_state_field "$session_dir/forge-state.json" $'data["complexity_score"] = 8\ndata["project_type"] = "brownfield"\ndata["project_dir"] = "/tmp/project"'
 
   cat >"$session_dir/requirements.md" <<'EOF'
 # Requirements — forge-20260311-140000
@@ -247,8 +252,7 @@ Simple.
 - **Risk**: None
 EOF
 
-  build_result="$session_dir/build-task-1-result.json"
-  cat >"$build_result" <<'EOF'
+  cat >"$session_dir/build-task-1-result.json" <<'EOF'
 {
   "task_number": 1,
   "status": "complete",
@@ -295,19 +299,7 @@ EOF
   bash "$ROOT_DIR/scripts/check-phase-gate.sh" verify "$session_dir"
   bash "$ROOT_DIR/scripts/check-phase-gate.sh" compound "$session_dir"
 
-  python3 - "$session_dir/forge-state.json" <<'PY'
-import json
-import sys
-
-path = sys.argv[1]
-with open(path, encoding="utf-8") as handle:
-    data = json.load(handle)
-
-data["current_phase"] = "bad-phase"
-
-with open(path, "w", encoding="utf-8") as handle:
-    json.dump(data, handle)
-PY
+  set_state_field "$session_dir/forge-state.json" 'data["current_phase"] = "bad-phase"'
 
   set +e
   bash "$ROOT_DIR/scripts/validate-state.sh" "$session_dir/forge-state.json" >/dev/null 2>&1
@@ -319,10 +311,212 @@ PY
   rm -rf "$tmp_root"
 }
 
+run_studio_dependency_tests() {
+  local tmp_root fake_bin status output
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' RETURN
+  fake_bin="$tmp_root/bin"
+  mkdir -p "$fake_bin"
+
+  ln -s "$(command -v tmux)" "$fake_bin/tmux"
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$fake_bin/lazygit"
+  chmod +x "$fake_bin/lazygit"
+
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" >/dev/null
+
+  rm -f "$fake_bin/lazygit"
+  set +e
+  output="$(PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" 2>&1)"
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "studio-check-deps should fail without lazygit"
+  assert_contains "$output" "Missing required tools: lazygit"
+
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$fake_bin/lazygit"
+  chmod +x "$fake_bin/lazygit"
+  rm -f "$fake_bin/tmux"
+  set +e
+  output="$(PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" 2>&1)"
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "studio-check-deps should fail without tmux"
+  assert_contains "$output" "Missing required tools: tmux"
+
+  trap - RETURN
+  rm -rf "$tmp_root"
+}
+
+run_studio_runtime_tests() {
+  local tmp_root fake_bin repo_dir session_dir state_file session_name other_session render_output popup_path
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' RETURN
+  fake_bin="$tmp_root/bin"
+  repo_dir="$tmp_root/repo"
+  session_dir="$tmp_root/session"
+  mkdir -p "$fake_bin" "$repo_dir" "$session_dir/context" "$session_dir/contracts"
+
+  ln -s "$(command -v tmux)" "$fake_bin/tmux"
+  cat >"$fake_bin/lazygit" <<'EOF'
+#!/usr/bin/env bash
+printf 'fake lazygit %s\n' "$PWD" >>"${FORGE_STUDIO_TEST_LOG:-/tmp/forge-studio-lazygit.log}"
+sleep 2
+EOF
+  chmod +x "$fake_bin/lazygit"
+
+  git -C "$repo_dir" init -b main >/dev/null
+  git -C "$repo_dir" config user.name "Forge Studio Test"
+  git -C "$repo_dir" config user.email "studio@example.com"
+  printf 'hi\n' >"$repo_dir/README.md"
+  git -C "$repo_dir" add README.md
+  git -C "$repo_dir" commit -m "init" >/dev/null
+
+  state_file="$session_dir/forge-state.json"
+  write_state "$state_file" "forge-20260311-150000" "build" "studio"
+  set_state_field "$state_file" $'data["tier"] = 2\ndata["complexity_score"] = 6\ndata["project_type"] = "brownfield"\ndata["project_dir"] = "'"$repo_dir"$'"\ndata["user_request"] = "Build studio"\ndata["phase_history"] = [{"phase": "classify", "status": "complete", "confidence": 0.9}]\ndata["build_tasks"] = [{"status": "complete"}, {"status": "running"}]'
+
+  cat >"$session_dir/requirements.md" <<'EOF'
+# Requirements
+## Task
+Build studio
+## Functional Requirements
+- [ ] Workspace
+## Constraints
+- Terminal only
+## Acceptance Criteria
+- [ ] Works
+EOF
+  cat >"$session_dir/plan.md" <<'EOF'
+# Implementation Plan
+
+## Architecture
+Studio
+
+## Research Citations
+- tmux: https://example.com/tmux
+
+## Contracts
+- none
+
+## Tasks
+### Task 1: Studio
+- **Files**: `scripts/tmux-setup.sh`
+- **Description**: Create studio
+- **Dependencies**: None
+- **Acceptance**: Layout exists
+
+## Risks & Mitigations
+- **Risk**: none
+EOF
+  cat >"$session_dir/context/decisions.md" <<'EOF'
+### [BUILDER] — now
+**Decision**: studio
+EOF
+  cat >"$session_dir/context/loop-learnings.md" <<'EOF'
+### Iteration 1
+**Built**: studio
+EOF
+  cat >"$session_dir/exploration.md" <<'EOF'
+# Exploration: Studio
+
+## Project Overview
+- Framework: shell
+
+## Conventions
+- bash
+
+## Relevant Files
+- scripts/tmux-setup.sh
+
+## Test Approach
+- bash
+
+## Web Research
+- **Query**: tmux layout
+- **Source**: https://example.com/tmux
+- **Finding**: good
+- **Impact**: okay
+
+## Risks & Concerns
+- none
+EOF
+  cat >"$session_dir/review-issues.json" <<'EOF'
+[]
+EOF
+  cat >"$session_dir/verify-result.json" <<'EOF'
+{
+  "build_passed": true,
+  "lint_configured": false,
+  "lint_passed": false,
+  "typecheck_configured": false,
+  "typecheck_passed": false,
+  "tests_passed": true,
+  "requirements_checked": true,
+  "requirements_gaps": [],
+  "overall_status": "passed",
+  "notes": "good"
+}
+EOF
+  cat >"$session_dir/session-summary.md" <<'EOF'
+# Session Summary
+Good.
+EOF
+
+  export FORGE_STUDIO_TEST_LOG="$tmp_root/lazygit.log"
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" >/dev/null
+  session_name="$(PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-session.sh" create "$session_dir" "$repo_dir")"
+  assert_contains "$session_name" "forge-forge-20260311-150000"
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-layout.sh" apply "$session_dir" build "$repo_dir" >/dev/null
+
+  [ -f "$session_dir/studio-layout.json" ] || fail "studio-layout.json should exist"
+  bash "$ROOT_DIR/scripts/validate-json.sh" "$ROOT_DIR/schemas/studio-layout.schema.json" "$session_dir/studio-layout.json" >/dev/null
+  bash "$ROOT_DIR/scripts/validate-state.sh" "$state_file" >/dev/null
+  assert_file_contains "$state_file" '"studio_layout_mode": "build"'
+  assert_file_contains "$state_file" '"studio_session_name": "forge-forge-20260311-150000"'
+
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" plan)"
+  assert_contains "$popup_path" "$session_dir/plan.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" help || true)"
+  [ -z "$popup_path" ] || true
+
+  bash "$ROOT_DIR/scripts/studio-help.sh" "$session_dir" >/dev/null
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" help)"
+  assert_contains "$popup_path" "$session_dir/studio-help.txt"
+
+  render_output="$(bash "$ROOT_DIR/scripts/tmux-render.sh" "$session_dir")"
+  assert_contains "$render_output" "Forge Studio"
+  assert_contains "$render_output" "mode=build"
+
+  other_session="not-forge-studio"
+  tmux new-session -d -s "$other_session" -c "$repo_dir"
+  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/tmux-teardown.sh" "$session_dir" >/dev/null
+  if tmux has-session -t "$session_name" 2>/dev/null; then
+    fail "tmux-teardown should destroy the targeted Forge Studio session"
+  fi
+  tmux has-session -t "$other_session" 2>/dev/null ||
+    fail "tmux-teardown should not destroy unrelated tmux sessions"
+  tmux kill-session -t "$other_session" >/dev/null 2>&1 || true
+
+  PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_studio_mode_for_tier 1)" = "focus" ] && [ "$(forge_studio_mode_for_tier 2)" = "build" ] && [ "$(forge_studio_mode_for_tier 3)" = "swarm" ]'
+  PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_resolve_workspace_dir "" "'"$session_dir"'")" = "'"$session_dir"'" ]'
+
+  trap - RETURN
+  rm -rf "$tmp_root"
+}
+
+run_metadata_tests() {
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.3.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.3.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
+  assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
+  assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'
+}
+
 run_destructive_guard_tests
 run_recovery_tests
 run_worktree_tests
 run_validation_tests
+run_studio_dependency_tests
+run_studio_runtime_tests
 run_metadata_tests
 
 echo "All tests passed."

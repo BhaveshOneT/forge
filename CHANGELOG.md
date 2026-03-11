@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 — 2026-03-11
+
+### Added
+- Forge Studio, a tmux-based terminal IDE workspace for every Forge run
+- Required dependency validation for `tmux`, `lazygit`, `bash`, and `python3`
+- Dedicated Studio session, layout, popup, help, activity, and git pane scripts
+- Studio layout schema and Forge state Studio metadata
+
+### Changed
+- Replaced the old Tier 3-only dashboard with persistent Forge Studio layouts for all tiers
+- Updated docs and manager instructions to treat Forge Studio as the default UX
+
 ## 1.2.0 — 2026-03-11
 
 ### Added

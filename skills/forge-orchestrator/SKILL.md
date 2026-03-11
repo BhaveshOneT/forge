@@ -1,6 +1,6 @@
 ---
 name: forge
-description: "The Forge Manager — dynamic agent orchestrator that adapts to task complexity. Routes simple tasks to direct execution, medium tasks to 3 agents, complex tasks to full swarm with TMUX dashboard."
+description: "The Forge Manager — dynamic agent orchestrator that adapts to task complexity and launches Forge Studio, a tmux-based terminal IDE workspace, for every run."
 user_invocable: true
 ---
 
@@ -37,11 +37,11 @@ Score the request on 4 signals (0/2/4 points each):
 | Keywords | "fix", "rename", "update" | "add", "implement", "create" | "build", "redesign", "system" |
 | Project | Greenfield | Small brownfield (<50 files) | Large brownfield (50+ files) |
 
-**Tier 1** (0-3): Manager handles directly. No agents, no session dir.
-**Tier 2** (4-8): Explorer → Builder → Reviewer (sequential). Session dir created.
-**Tier 3** (9+): Explorer×2 → Architect → Builder → Reviewer×2 + TMUX. Full session.
+**Tier 1** (0-3): Manager handles directly inside Forge Studio focus mode.
+**Tier 2** (4-8): Explorer → Builder → Reviewer inside Forge Studio build mode.
+**Tier 3** (9+): Explorer×2 → Architect → Builder → Reviewer×2 inside Forge Studio swarm mode.
 
-## Session Initialization (Tier 2 & 3 only)
+## Session Initialization (All Tiers)
 
 1. Generate session ID: `forge-YYYYMMDD-HHmmss`
 2. Create: `~/.claude/forge/sessions/<id>/`
@@ -49,7 +49,12 @@ Score the request on 4 signals (0/2/4 points each):
 4. Initialize `forge-state.json`
 5. Detect project type (greenfield vs brownfield)
 6. Set `project_dir` to current working directory
-7. **Create worktree** (Tier 2 & 3 only — see "Git Worktree Isolation" section above):
+7. **Start Forge Studio**:
+   - Run `bash scripts/studio-check-deps.sh`
+   - Run `bash scripts/tmux-setup.sh <session-dir>`
+   - Forge Studio owns a dedicated tmux session for this run
+   - Tier 1 defaults to `focus`, Tier 2 to `build`, Tier 3 to `swarm`
+8. **Create worktree** (Tier 2 & 3 only — see "Git Worktree Isolation" section above):
    - Run `scripts/worktree-setup.sh` to create isolated working directory
    - Update `project_dir` in forge-state.json to the worktree path
    - All agents will work in the worktree, not the original directory
@@ -110,7 +115,7 @@ During COMPOUND, after writing session-summary.md:
 
 ### Tier 1 Exception
 
-Tier 1 (0-3 complexity) does NOT use worktrees. Manager executes directly in cwd. Worktree overhead isn't worth it for single-file fixes.
+Tier 1 (0-3 complexity) does NOT use worktrees. Manager still runs inside Forge Studio, but executes directly in cwd.
 
 ## Jira-Driven Execution
 
@@ -168,7 +173,7 @@ Models: Explorer=sonnet, Builder=opus, Reviewer=opus.
 ```
 CLASSIFY → GRILL (2-8 Qs) → EXPLORE (2× parallel) → ARCHITECT → BUILD → REVIEW (2× parallel) → [loop max 3] → VERIFY → COMPOUND → DONE
 ```
-Models: Explorer=sonnet, Architect/Builder/Reviewer=opus. TMUX dashboard active.
+Models: Explorer=sonnet, Architect/Builder/Reviewer=opus. Forge Studio swarm mode active.
 
 ## Subagent Dispatch
 
@@ -193,13 +198,15 @@ After each loop iteration, append to `context/loop-learnings.md`:
 ```
 Builder MUST read loop-learnings before each iteration.
 
-## TMUX Dashboard (Tier 3 only)
+## Forge Studio (All Tiers)
 
-If inside tmux: `bash scripts/tmux-setup.sh <session-dir>`
-If not in tmux: print inline status after each phase:
-```
-[PHASE] confidence | brief status
-```
+Forge Studio is the default terminal workspace for every run.
+
+- `bash scripts/studio-check-deps.sh` validates required tools
+- `bash scripts/tmux-setup.sh <session-dir>` creates or attaches to the Studio session
+- `bash scripts/studio-layout.sh apply <session-dir> <mode>` applies `focus`, `build`, or `swarm`
+- `bash scripts/studio-popup.sh open <session-dir> <target>` opens read-only popups for session artifacts
+- Studio persists after completion; it is not auto-destroyed during COMPOUND
 
 ## Safety Limits
 
@@ -212,13 +219,14 @@ If not in tmux: print inline status after each phase:
 
 1. Write `session-summary.md` from template
 2. Extract learnings to `~/.claude/forge/memory/MEMORY.md` (max 5 lines per entry)
-3. Tear down TMUX dashboard if active
+3. Mark Forge Studio complete but leave the workspace running for inspection
 4. Present summary to user
 5. Mark session complete in `forge-state.json`
 
 ## Artifact Contracts
 
 - `forge-state.json` must conform to `schemas/forge-state.schema.json`
+- Forge Studio layout metadata must conform to `schemas/studio-layout.schema.json`
 - Builder outputs must conform to `schemas/build-task-result.schema.json`
 - Reviewer outputs must conform to `schemas/review-issues.schema.json`
 - VERIFY writes `verify-result.json` conforming to `schemas/verify-result.schema.json`

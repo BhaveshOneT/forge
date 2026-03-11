@@ -1,27 +1,44 @@
 #!/usr/bin/env bash
-# Forge: TMUX dashboard setup (Tier 3 only)
-# Creates a status pane showing session progress with two-column layout.
-# Usage: bash tmux-setup.sh <session-dir>
+# Forge Studio entrypoint.
+# Creates or attaches to a dedicated tmux workspace for the Forge session.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./lib/forge-common.sh
+source "$SCRIPT_DIR/lib/forge-common.sh"
 
 SESSION_DIR="${1:?Usage: tmux-setup.sh <session-dir>}"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PANE_ID_FILE="$SESSION_DIR/tmux-pane-id"
+STATE_FILE="$SESSION_DIR/forge-state.json"
 
-# Only works inside tmux
-if [ -z "$TMUX" ]; then
-  echo "Not in a tmux session. Skipping dashboard setup."
-  exit 0
-fi
+[ -f "$STATE_FILE" ] || {
+  echo "Missing forge-state.json in $SESSION_DIR" >&2
+  exit 1
+}
 
-SCRIPT_DIR_Q="$(printf '%q' "$SCRIPT_DIR")"
-SESSION_DIR_Q="$(printf '%q' "$SESSION_DIR")"
+bash "$SCRIPT_DIR/studio-check-deps.sh" >/dev/null
 
-# Create a bottom pane (16 lines) for the two-column dashboard
-PANE_ID="$(
-  tmux split-window -P -F '#{pane_id}' -v -l 16 \
-    "FORGE_SCRIPT_DIR=$SCRIPT_DIR_Q FORGE_SESSION_DIR=$SESSION_DIR_Q bash -lc 'while true; do bash \"\$FORGE_SCRIPT_DIR/tmux-render.sh\" \"\$FORGE_SESSION_DIR\"; sleep 3; done'"
-)"
-tmux select-pane -t 0  # Return focus to main pane
-printf '%s\n' "$PANE_ID" > "$PANE_ID_FILE"
+PROJECT_DIR="$(forge_json_get "$STATE_FILE" "data.get('project_dir', '')")"
+TIER="$(forge_json_get "$STATE_FILE" "data.get('tier', 1)")"
+MODE="$(forge_studio_mode_for_tier "$TIER")"
+WORKSPACE_DIR="$(forge_resolve_workspace_dir "$PROJECT_DIR" "$SESSION_DIR")"
+SESSION_NAME="$(bash "$SCRIPT_DIR/studio-session.sh" create "$SESSION_DIR" "$WORKSPACE_DIR")"
 
-echo "Forge dashboard started in bottom pane."
+forge_update_json_file "$STATE_FILE" "
+data['studio_enabled'] = True
+data['studio_session_name'] = '$SESSION_NAME'
+data['studio_layout_mode'] = '$MODE'
+data['studio_status'] = 'starting'
+data['studio_workspace_ready'] = False
+data['studio_persistent'] = True
+data['studio_last_focus'] = 'main'
+if 'studio_created_at' not in data:
+    data['studio_created_at'] = '$(forge_iso_timestamp)'
+"
+
+bash "$SCRIPT_DIR/studio-help.sh" "$SESSION_DIR" >/dev/null
+bash "$SCRIPT_DIR/studio-activity.sh" "$SESSION_DIR" >/dev/null
+bash "$SCRIPT_DIR/studio-layout.sh" apply "$SESSION_DIR" "$MODE" "$WORKSPACE_DIR" >/dev/null
+
+echo "Forge Studio ready: $SESSION_NAME"
+bash "$SCRIPT_DIR/studio-session.sh" attach "$SESSION_DIR"

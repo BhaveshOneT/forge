@@ -1,121 +1,134 @@
 #!/usr/bin/env bash
-# Forge: TMUX two-column dashboard renderer
-# Parses forge-state.json and renders a rich status display.
-# Called in a loop by tmux-setup.sh every 3 seconds.
+# Forge Studio renderer for the persistent status pane.
 
-SESSION_DIR="${1:?}"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=./lib/forge-common.sh
+source "$SCRIPT_DIR/lib/forge-common.sh"
+
+SESSION_DIR="${1:?Usage: tmux-render.sh <session-dir>}"
 STATE_FILE="$SESSION_DIR/forge-state.json"
+ACTIVITY_FILE="$SESSION_DIR/studio-activity.log"
 
-[ -f "$STATE_FILE" ] || { echo "Waiting for session to start..."; exit 0; }
+[ -f "$STATE_FILE" ] || { echo "Waiting for forge-state.json..."; exit 0; }
+bash "$SCRIPT_DIR/studio-activity.sh" "$SESSION_DIR" >/dev/null 2>&1 || true
 
-clear
-export STATE_FILE
-python3 << 'PYEOF'
-import json, sys, os
+if [ -t 1 ]; then
+  clear
+fi
+export STATE_FILE ACTIVITY_FILE
+python3 <<'PYEOF'
+import json
+import os
+import sys
+from pathlib import Path
 
 try:
-    with open(os.environ['STATE_FILE']) as f:
-        s = json.load(f)
+    with open(os.environ["STATE_FILE"], encoding="utf-8") as handle:
+        state = json.load(handle)
 except Exception:
     print("Waiting for forge-state.json...")
     sys.exit(0)
 
-sid = s['session_id']
-tier = s['tier']
-tier_label = {1: 'SIMPLE', 2: 'MEDIUM', 3: 'COMPLEX'}.get(tier, '?')
-ptype = s['project_type']
-phase = s['current_phase']
-backtracks = s['total_backtracks']
-loop = s['build_review_loop']
-tokens = s.get('tokens_estimate', 0)
-checkpoint = s.get('checkpoint', '')
-request = s.get('user_request', '')[:55]
-agents = s.get('active_agents', [])
-build_tasks = s.get('build_tasks', [])
+activity_lines = []
+activity_path = Path(os.environ["ACTIVITY_FILE"])
+if activity_path.is_file():
+    activity_lines = [line.strip() for line in activity_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-source = s.get('source', '')
-jira_key = s.get('jira_issue_key', '')
-if source == 'jira':
+session_id = state.get("session_id", "unknown")
+tier = state.get("tier", "?")
+phase = state.get("current_phase", "unknown")
+project_type = state.get("project_type", "unknown")
+checkpoint = state.get("checkpoint", "")
+layout_mode = state.get("studio_layout_mode", "unknown")
+studio_status = state.get("studio_status", "inactive")
+request = state.get("user_request", "Forge session")[:60]
+loop = state.get("build_review_loop", 0)
+backtracks = state.get("total_backtracks", 0)
+source = state.get("source", "")
+jira_key = state.get("jira_issue_key", "")
+tokens = state.get("tokens_estimate", 0)
+
+if source == "jira":
     if tier == 3:
-        phases = ['jira_fetch', 'confluence_enrich', 'synthesize', 'classify', 'grill', 'explore', 'architect', 'build', 'review', 'verify', 'ship']
+        phases = ["jira_fetch", "confluence_enrich", "synthesize", "classify", "grill", "explore", "architect", "build", "review", "verify", "ship", "compound"]
     else:
-        phases = ['jira_fetch', 'confluence_enrich', 'synthesize', 'classify', 'grill', 'explore', 'build', 'review', 'ship']
+        phases = ["jira_fetch", "confluence_enrich", "synthesize", "classify", "grill", "explore", "build", "review", "ship", "compound"]
 else:
-    if tier == 3:
-        phases = ['classify', 'grill', 'explore', 'architect', 'build', 'review', 'verify']
-    else:
-        phases = ['classify', 'grill', 'explore', 'build', 'review']
-history = {h['phase']: h for h in s.get('phase_history', [])}
+    phases = ["classify", "grill", "explore", "build", "review", "compound"] if tier != 3 else ["classify", "grill", "explore", "architect", "build", "review", "verify", "compound"]
 
-confidence = 0.0
-for h in reversed(s.get('phase_history', [])):
-    if h.get('status') == 'complete' and h.get('confidence'):
-        confidence = h['confidence']
-        break
+history = {item.get("phase"): item for item in state.get("phase_history", [])}
+agents = state.get("active_agents", [])
+build_tasks = state.get("build_tasks", [])
+ship_result = state.get("ship_result", {})
 
-W = 64
-L = 30
-model = 'opus/4'
+def fmt_phase_line(name):
+    entry = history.get(name, {})
+    if name == phase:
+        return f"[>] {name.upper():<16} live"
+    if entry.get("status") == "complete":
+        conf = entry.get("confidence")
+        suffix = f"{conf:.2f}" if isinstance(conf, (int, float)) else "done"
+        return f"[x] {name.upper():<16} {suffix}"
+    if entry.get("status") == "failed":
+        return f"[!] {name.upper():<16} failed"
+    return f"[ ] {name.upper():<16} waiting"
 
-# Top border + header
-print('┌' + '─' * (W - 2) + '┐')
-hdr = f' FORGE: {f"[{jira_key}] " if jira_key else ""}{sid}'
-print(f'│{hdr:<{W-2-len(model)-1}}{model} │')
-task_line = f' Task: "{request}"'
-print(f'│{task_line:<{W-2}}│')
-info = f' Tier: {tier_label} │ Project: {ptype} │ Tokens: ~{tokens // 1000}k'
-print(f'│{info:<{W-2}}│')
+lines = []
+lines.append("┌" + "─" * 74 + "┐")
+header = f" Forge Studio: {session_id}"
+if jira_key:
+    header += f" [{jira_key}]"
+header_right = f"mode={layout_mode} status={studio_status}"
+lines.append(f"│{header:<50}{header_right:>24} │")
+lines.append(f"│ Task: {request:<65}│")
+lines.append(f"│ Tier: {tier}  Project: {project_type:<14} Phase: {phase:<14} │")
+lines.append(f"│ Loop: {loop:<3} Backtracks: {backtracks:<3} Tokens: ~{tokens // 1000:<4}k {' ':21}│")
+lines.append("├" + "─" * 36 + "┬" + "─" * 37 + "┤")
+lines.append(f"│ {'PIPELINE':<34} │ {'IDE HINTS':<35} │")
 
-# Column split
-print('├' + '─' * L + '┬' + '─' * (W - 3 - L) + '┤')
-print(f'│ {"PIPELINE":<{L-2}} │ {"AGENTS":<{W-4-L}} │')
+hint_lines = []
+artifact_map = [
+    ("r", "requirements.md"),
+    ("p", "plan.md"),
+    ("i", "review-issues.json"),
+    ("d", "decisions"),
+    ("l", "learnings"),
+    ("e", "exploration"),
+    ("v", "verify-result.json"),
+]
+for key, label in artifact_map:
+    hint_lines.append(f"prefix+{key} {label}")
 
-# Agent status lines
-agent_lines = []
-for a in agents:
-    st = a.get('status', 'IDLE')
-    icon = {'running': '→ RUNNING', 'done': '✓ DONE', 'idle': '  IDLE'}.get(st.lower(), f'  {st}')
-    agent_lines.append(f'{a.get("name", "?"):<12} {icon}')
-while len(agent_lines) < len(phases):
-    agent_lines.append('')
+if tier == 3 and agents:
+    for agent in agents[:4]:
+        hint_lines.append(f"{agent.get('name', '?')}: {agent.get('status', 'idle')}")
+elif build_tasks:
+    completed = sum(1 for item in build_tasks if item.get("status") == "complete")
+    hint_lines.append(f"build tasks: {completed}/{len(build_tasks)} complete")
 
-# Phase rows
-for i, p in enumerate(phases):
-    p_upper = p.upper()
-    h = history.get(p, {})
-    status = h.get('status', 'pending')
-    conf = h.get('confidence', '----')
+if checkpoint:
+    hint_lines.append(f"checkpoint: {checkpoint[:28]}")
+for line in activity_lines[:3]:
+    hint_lines.append(line[:35])
 
-    if p == phase:
-        icon, conf_str = '→', '.... working'
-    elif status == 'complete':
-        icon = '✓'
-        conf_str = f'{conf:.2f}' if isinstance(conf, float) else str(conf)
-    else:
-        icon, conf_str = ' ', '----'
+while len(hint_lines) < len(phases):
+    hint_lines.append("")
 
-    extra = ''
-    if p == 'build' and build_tasks:
-        done = sum(1 for t in build_tasks if t.get('status') == 'complete')
-        extra = f' {done}/{len(build_tasks)}'
+for idx, phase_name in enumerate(phases):
+    left = fmt_phase_line(phase_name)
+    right = hint_lines[idx] if idx < len(hint_lines) else ""
+    lines.append(f"│ {left:<34} │ {right:<35} │")
 
-    left = f' [{icon}] {p_upper:<11} {conf_str}{extra}'
-    right = agent_lines[i] if i < len(agent_lines) else ''
-    print(f'│{left:<{L}}│ {right:<{W-4-L}} │')
-
-# Footer
-print('├' + '─' * L + '┴' + '─' * (W - 3 - L) + '┤')
-status_line = f' Backtracks: {backtracks}/8 │ Loop: build→review #{loop} │ Confidence: {confidence:.2f}'
-print(f'│{status_line:<{W-2}}│')
-if checkpoint and checkpoint != 'None':
-    ckpt = f' {checkpoint}'[:W-3]
-    print(f'│{ckpt:<{W-2}}│')
+lines.append("├" + "─" * 36 + "┴" + "─" * 37 + "┤")
+git_line = " prefix+g git  prefix+s status  prefix+c main  prefix+m mode "
+lines.append(f"│{git_line:<74}│")
+if ship_result.get("pr_url"):
+    pr_line = f" PR: {ship_result['pr_url']}"[:74]
+    lines.append(f"│{pr_line:<74}│")
 else:
-    print(f'│{" " * (W-2)}│')
-ship = s.get('ship_result', {})
-pr_url = ship.get('pr_url', '')
-if pr_url:
-    pr_line = f' PR: {pr_url}'[:W-3]
-    print(f'│{pr_line:<{W-2}}│')
-print('└' + '─' * (W - 2) + '┘')
+    lines.append(f"│{' ':74}│")
+lines.append("└" + "─" * 74 + "┘")
+print("\n".join(lines))
 PYEOF
