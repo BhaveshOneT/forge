@@ -1,14 +1,14 @@
 {
   "name": "forge",
   "owner": {
-    "name": "BhaveshY"
+    "name": "BhaveshOneT"
   },
   "plugins": [
     {
       "name": "forge",
       "source": {
         "source": "github",
-        "repo": "BhaveshY/forge"
+        "repo": "BhaveshOneT/forge"
       },
       "description": "Dynamic agent orchestrator — adapts to task complexity with 3-tier routing, structured context, and TMUX dashboard",
       "version": "1.0.0"
