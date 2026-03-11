@@ -41,6 +41,7 @@ write_state() {
   "total_backtracks": 0,
   "tier": 2,
   "build_review_loop": 0,
+  "execution_mode": "prompt",
   "checkpoint": "$checkpoint",
   "source": "",
   "jira_issue_key": "",
@@ -307,6 +308,14 @@ EOF
   set -e
   [ "$status" -ne 0 ] || fail "validate-state should reject invalid phase names"
 
+  write_state "$session_dir/forge-state.json" "forge-20260311-140000" "verify" "validate"
+  set_state_field "$session_dir/forge-state.json" 'data["execution_mode"] = "broken"'
+  set +e
+  bash "$ROOT_DIR/scripts/validate-state.sh" "$session_dir/forge-state.json" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "validate-state should reject invalid execution modes"
+
   trap - RETURN
   rm -rf "$tmp_root"
 }
@@ -347,13 +356,14 @@ run_studio_dependency_tests() {
 }
 
 run_studio_runtime_tests() {
-  local tmp_root fake_bin repo_dir session_dir state_file session_name other_session render_output popup_path
+  local tmp_root fake_bin repo_dir session_dir jira_session_dir state_file jira_state_file session_name other_session render_output popup_path help_output jira_render_output jira_help_output
   tmp_root="$(mktemp -d)"
   trap 'rm -rf "$tmp_root"' RETURN
   fake_bin="$tmp_root/bin"
   repo_dir="$tmp_root/repo"
   session_dir="$tmp_root/session"
-  mkdir -p "$fake_bin" "$repo_dir" "$session_dir/context" "$session_dir/contracts"
+  jira_session_dir="$tmp_root/jira-session"
+  mkdir -p "$fake_bin" "$repo_dir" "$session_dir/context" "$session_dir/contracts" "$jira_session_dir/context" "$jira_session_dir/contracts"
 
   ln -s "$(command -v tmux)" "$fake_bin/tmux"
   cat >"$fake_bin/lazygit" <<'EOF'
@@ -472,6 +482,7 @@ EOF
   bash "$ROOT_DIR/scripts/validate-state.sh" "$state_file" >/dev/null
   assert_file_contains "$state_file" '"studio_layout_mode": "build"'
   assert_file_contains "$state_file" '"studio_session_name": "forge-forge-20260311-150000"'
+  assert_file_contains "$state_file" '"execution_mode": "prompt"'
 
   popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" plan)"
   assert_contains "$popup_path" "$session_dir/plan.md"
@@ -479,12 +490,53 @@ EOF
   [ -z "$popup_path" ] || true
 
   bash "$ROOT_DIR/scripts/studio-help.sh" "$session_dir" >/dev/null
+  help_output="$(bash "$ROOT_DIR/scripts/studio-help.sh" "$session_dir" --print)"
+  assert_contains "$help_output" "Execution mode: prompt"
+  assert_contains "$help_output" "Prompt mode emphasis"
   popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" help)"
   assert_contains "$popup_path" "$session_dir/studio-help.txt"
 
   render_output="$(bash "$ROOT_DIR/scripts/tmux-render.sh" "$session_dir")"
   assert_contains "$render_output" "Forge Studio"
-  assert_contains "$render_output" "mode=build"
+  assert_contains "$render_output" "entry=prompt layout=build status=active"
+
+  jira_state_file="$jira_session_dir/forge-state.json"
+  write_state "$jira_state_file" "forge-20260311-160000" "ship" "jira studio"
+  set_state_field "$jira_state_file" $'data["execution_mode"] = "jira"\ndata["source"] = "jira"\ndata["tier"] = 2\ndata["project_type"] = "brownfield"\ndata["project_dir"] = "'"$repo_dir"$'"\ndata["user_request"] = "Ship jira issue"\ndata["jira_issue_key"] = "PROJ-123"\ndata["ship_result"] = {"pr_url": "https://example.com/pr/123"}'
+  cat >"$jira_session_dir/jira-context.json" <<'EOF'
+{
+  "key": "PROJ-123",
+  "summary": "Ship jira issue",
+  "description": "Jira flow",
+  "issue_type": "Story"
+}
+EOF
+  cat >"$jira_session_dir/confluence-context.md" <<'EOF'
+# Confluence Context
+Useful design notes.
+EOF
+  cat >"$jira_session_dir/ship-result.json" <<'EOF'
+{
+  "branch": "forge/PROJ-123-ship",
+  "pr_url": "https://example.com/pr/123",
+  "jira_comment_added": true,
+  "jira_transitioned": false
+}
+EOF
+  bash "$ROOT_DIR/scripts/studio-help.sh" "$jira_session_dir" >/dev/null
+  jira_help_output="$(bash "$ROOT_DIR/scripts/studio-help.sh" "$jira_session_dir" --print)"
+  assert_contains "$jira_help_output" "Execution mode: jira"
+  assert_contains "$jira_help_output" "Jira mode artifacts"
+  assert_contains "$jira_help_output" "j  Open Jira context popup"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$jira_session_dir" jira-context)"
+  assert_contains "$popup_path" "$jira_session_dir/jira-context.json"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$jira_session_dir" confluence)"
+  assert_contains "$popup_path" "$jira_session_dir/confluence-context.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$jira_session_dir" ship)"
+  assert_contains "$popup_path" "$jira_session_dir/ship-result.json"
+  jira_render_output="$(bash "$ROOT_DIR/scripts/tmux-render.sh" "$jira_session_dir")"
+  assert_contains "$jira_render_output" "entry=jira layout=unknown status=inactive"
+  assert_contains "$jira_render_output" "Jira: PROJ-123"
 
   other_session="not-forge-studio"
   tmux new-session -d -s "$other_session" -c "$repo_dir"
@@ -498,14 +550,19 @@ EOF
 
   PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_studio_mode_for_tier 1)" = "focus" ] && [ "$(forge_studio_mode_for_tier 2)" = "build" ] && [ "$(forge_studio_mode_for_tier 3)" = "swarm" ]'
   PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_resolve_workspace_dir "" "'"$session_dir"'")" = "'"$session_dir"'" ]'
+  PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_execution_mode_from_state "'"$state_file"'")" = "prompt" ]'
+  PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_execution_mode_from_state "'"$jira_state_file"'")" = "jira" ]'
+
+  set_state_field "$jira_state_file" 'data.pop("execution_mode", None)'
+  PATH="$ROOT_DIR/scripts:$PATH" bash -lc 'source "'"$ROOT_DIR"'/scripts/lib/forge-common.sh"; [ "$(forge_execution_mode_from_state "'"$jira_state_file"'")" = "jira" ]'
 
   trap - RETURN
   rm -rf "$tmp_root"
 }
 
 run_metadata_tests() {
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.3.0"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.3.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.4.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.4.0"'
   assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
   assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
   assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'

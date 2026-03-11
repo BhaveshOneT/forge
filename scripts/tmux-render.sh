@@ -46,11 +46,13 @@ studio_status = state.get("studio_status", "inactive")
 request = state.get("user_request", "Forge session")[:60]
 loop = state.get("build_review_loop", 0)
 backtracks = state.get("total_backtracks", 0)
-source = state.get("source", "")
+execution_mode = state.get("execution_mode")
+if execution_mode not in {"prompt", "jira"}:
+    execution_mode = "jira" if state.get("source") == "jira" else "prompt"
 jira_key = state.get("jira_issue_key", "")
 tokens = state.get("tokens_estimate", 0)
 
-if source == "jira":
+if execution_mode == "jira":
     if tier == 3:
         phases = ["jira_fetch", "confluence_enrich", "synthesize", "classify", "grill", "explore", "architect", "build", "review", "verify", "ship", "compound"]
     else:
@@ -78,26 +80,41 @@ def fmt_phase_line(name):
 lines = []
 lines.append("┌" + "─" * 74 + "┐")
 header = f" Forge Studio: {session_id}"
-if jira_key:
-    header += f" [{jira_key}]"
-header_right = f"mode={layout_mode} status={studio_status}"
-lines.append(f"│{header:<50}{header_right:>24} │")
+header_right = f"entry={execution_mode} layout={layout_mode} status={studio_status}"
+header_left_width = max(1, 74 - len(header_right))
+header_left = header[:header_left_width].ljust(header_left_width)
+lines.append(f"│{header_left}{header_right}│")
 lines.append(f"│ Task: {request:<65}│")
+if jira_key:
+    lines.append(f"│ Jira: {jira_key:<65}│")
+else:
+    lines.append(f"│{' ':74}│")
 lines.append(f"│ Tier: {tier}  Project: {project_type:<14} Phase: {phase:<14} │")
 lines.append(f"│ Loop: {loop:<3} Backtracks: {backtracks:<3} Tokens: ~{tokens // 1000:<4}k {' ':21}│")
 lines.append("├" + "─" * 36 + "┬" + "─" * 37 + "┤")
 lines.append(f"│ {'PIPELINE':<34} │ {'IDE HINTS':<35} │")
 
 hint_lines = []
-artifact_map = [
-    ("r", "requirements.md"),
-    ("p", "plan.md"),
-    ("i", "review-issues.json"),
-    ("d", "decisions"),
-    ("l", "learnings"),
-    ("e", "exploration"),
-    ("v", "verify-result.json"),
-]
+if execution_mode == "jira":
+    artifact_map = [
+        ("j", "jira-context.json"),
+        ("o", "confluence-context.md"),
+        ("r", "requirements.md"),
+        ("p", "plan.md"),
+        ("h", "ship-result.json"),
+        ("i", "review-issues.json"),
+        ("v", "verify-result.json"),
+    ]
+else:
+    artifact_map = [
+        ("r", "requirements.md"),
+        ("p", "plan.md"),
+        ("i", "review-issues.json"),
+        ("d", "decisions"),
+        ("l", "learnings"),
+        ("e", "exploration"),
+        ("v", "verify-result.json"),
+    ]
 for key, label in artifact_map:
     hint_lines.append(f"prefix+{key} {label}")
 
@@ -122,7 +139,7 @@ for idx, phase_name in enumerate(phases):
     lines.append(f"│ {left:<34} │ {right:<35} │")
 
 lines.append("├" + "─" * 36 + "┴" + "─" * 37 + "┤")
-git_line = " prefix+g git  prefix+s status  prefix+c main  prefix+m mode "
+git_line = " prefix+g git  prefix+s status  prefix+c main  prefix+m layout "
 lines.append(f"│{git_line:<74}│")
 if ship_result.get("pr_url"):
     pr_line = f" PR: {ship_result['pr_url']}"[:74]

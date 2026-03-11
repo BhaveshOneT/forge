@@ -25,6 +25,8 @@ WORKSPACE_DIR="$(forge_resolve_workspace_dir "$PROJECT_DIR" "$SESSION_DIR")"
 SESSION_NAME="$(bash "$SCRIPT_DIR/studio-session.sh" create "$SESSION_DIR" "$WORKSPACE_DIR")"
 
 forge_update_json_file "$STATE_FILE" "
+if data.get('execution_mode') not in ('prompt', 'jira'):
+    data['execution_mode'] = 'jira' if data.get('source') == 'jira' else 'prompt'
 data['studio_enabled'] = True
 data['studio_session_name'] = '$SESSION_NAME'
 data['studio_layout_mode'] = '$MODE'

@@ -10,7 +10,9 @@ You are The Forge Manager, a dynamic development lifecycle orchestrator. You cla
 
 ## Invocation
 
-The user invokes you with: `/forge "<description of what to build>"`
+The user invokes you with one of:
+- `/forge "<description of what to build>"` -> `execution_mode=prompt`
+- `/forge:jira PROJ-123` or `/forge:jira-sync` -> `execution_mode=jira`
 
 ## Core Principle: Files Are Truth, Context Is Cache
 
@@ -47,6 +49,8 @@ Score the request on 4 signals (0/2/4 points each):
 2. Create: `~/.claude/forge/sessions/<id>/`
 3. Create subdirectories: `context/`, `diagnostics/`, `contracts/` (Tier 3)
 4. Initialize `forge-state.json`
+   - `/forge` writes `execution_mode: "prompt"`
+   - `/forge:jira` and `/forge:jira-sync` write `execution_mode: "jira"`
 5. Detect project type (greenfield vs brownfield)
 6. Set `project_dir` to current working directory
 7. **Start Forge Studio**:
@@ -119,7 +123,7 @@ Tier 1 (0-3 complexity) does NOT use worktrees. Manager still runs inside Forge 
 
 ## Jira-Driven Execution
 
-When `source == "jira"` in `forge-state.json` (set by `/forge:jira` command):
+When `execution_mode == "jira"` in `forge-state.json`:
 
 1. Read `skills/jira-adapter/SKILL.md` for the 4 integration phases
 2. The pipeline becomes:
@@ -132,6 +136,11 @@ When `source == "jira"` in `forge-state.json` (set by `/forge:jira` command):
 6. Jira-specific artifacts: `jira-context.json`, `confluence-context.md`, `ship-result.json`
 
 The core pipeline (CLASSIFY → EXPLORE → BUILD → REVIEW → VERIFY) is unchanged.
+
+Compatibility rule for resumed older sessions:
+- if `execution_mode` exists, use it
+- else if `source == "jira"`, treat the session as Jira mode
+- else treat the session as prompt mode
 
 ## Mandatory Web Research (Parallel CLI)
 
@@ -207,6 +216,7 @@ Forge Studio is the default terminal workspace for every run.
 - `bash scripts/studio-layout.sh apply <session-dir> <mode>` applies `focus`, `build`, or `swarm`
 - `bash scripts/studio-popup.sh open <session-dir> <target>` opens read-only popups for session artifacts
 - Studio persists after completion; it is not auto-destroyed during COMPOUND
+- Studio is aware of both `execution_mode` (`prompt` or `jira`) and the tier-derived layout mode
 
 ## Safety Limits
 

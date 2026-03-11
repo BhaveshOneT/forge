@@ -10,17 +10,20 @@ SESSION_DIR="${1:?Usage: studio-help.sh <session-dir> [--print]}"
 PRINT_ONLY="${2:-}"
 STATE_FILE="$SESSION_DIR/forge-state.json"
 HELP_FILE="$SESSION_DIR/studio-help.txt"
-MODE="unknown"
+LAYOUT_MODE="unknown"
+EXECUTION_MODE="prompt"
 
 if [ -f "$STATE_FILE" ]; then
-  MODE="$(forge_json_get "$STATE_FILE" "data.get('studio_layout_mode', 'unknown')")"
+  LAYOUT_MODE="$(forge_json_get "$STATE_FILE" "data.get('studio_layout_mode', 'unknown')")"
+  EXECUTION_MODE="$(forge_execution_mode_from_state "$STATE_FILE")"
 fi
 
 cat >"$HELP_FILE" <<EOF
 Forge Studio
 ============
 
-Mode: $MODE
+Execution mode: $EXECUTION_MODE
+Layout mode: $LAYOUT_MODE
 
 Keybindings (tmux prefix + key)
   g  Focus git pane
@@ -36,6 +39,29 @@ Keybindings (tmux prefix + key)
   m  Toggle layout mode
   ?  Open this help popup
 EOF
+
+if [ "$EXECUTION_MODE" = "jira" ]; then
+  cat >>"$HELP_FILE" <<'EOF'
+  j  Open Jira context popup
+  o  Open Confluence context popup
+  h  Open ship result popup
+
+Jira mode artifacts
+  jira-context.json
+  confluence-context.md
+  ship-result.json
+EOF
+else
+  cat >>"$HELP_FILE" <<'EOF'
+
+Prompt mode emphasis
+  requirements.md
+  plan.md
+  context/decisions.md
+  context/loop-learnings.md
+  exploration.md
+EOF
+fi
 
 if [ "$PRINT_ONLY" = "--print" ]; then
   cat "$HELP_FILE"

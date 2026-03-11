@@ -107,6 +107,10 @@
       "type": "integer",
       "minimum": 0
     },
+    "execution_mode": {
+      "type": "string",
+      "enum": ["prompt", "jira"]
+    },
     "source": {
       "type": "string",
       "enum": ["", "jira"]

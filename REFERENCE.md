@@ -9,24 +9,23 @@ Detailed phase protocols, dispatch templates, gate conditions, and the backtrack
 This is the shortest accurate description of how Forge runs.
 
 ```text
-/forge
-  |
-  +--> CLASSIFY
-  |      decide tier and whether a session/worktree is needed
-  |
-  +--> GRILL
-  |      gather missing requirements once
-  |
-  +--> EXECUTE
-  |      Tier 1: manager only
-  |      Tier 2: explore -> build -> review
-  |      Tier 3: explore -> architect -> build -> review -> verify
-  |
-  `--> COMPOUND
-         write summary
-         extract memory
-         keep Forge Studio alive
-         clean worktree if needed
+/forge "..."              /forge:jira ...
+      |                         |
+      +------ execution mode ---+
+                  |
+                  +--> prompt
+                  `--> jira
+                         |
+                         v
+                     CLASSIFY
+                         |
+                         +--> Tier 1
+                         +--> Tier 2
+                         `--> Tier 3
+                              |
+                              v
+                    Forge Studio layout
+                    focus / build / swarm
 ```
 
 ## State Ownership
@@ -41,6 +40,23 @@ studio-layout.json        Studio pane metadata and mode
 ```
 
 Recovery rule: files are truth, conversation is cache.
+
+## Execution Modes
+
+Forge has two entry modes:
+
+- `prompt` -> standard pasted user prompt via `/forge "..."`
+- `jira` -> Jira or board-driven flow via `/forge:jira ...` and `/forge:jira-sync`
+
+Execution mode is separate from:
+
+- `tier` -> orchestration depth
+- `studio_layout_mode` -> tmux workspace density
+
+Compatibility rule:
+- use `execution_mode` when present
+- otherwise infer `jira` from `source == "jira"`
+- otherwise default to `prompt`
 
 ## Forge Studio
 
@@ -62,6 +78,14 @@ Runtime requirements:
 - `python3`
 
 There is no degraded non-Studio mode.
+
+Studio is mode-aware:
+- `prompt` sessions emphasize requirements, plan, exploration, decisions, and loop learnings
+- `jira` sessions emphasize Jira context, Confluence context, shipping, PR state, and the extended Jira pipeline
+
+Popup targets:
+- prompt oriented: `requirements`, `plan`, `issues`, `decisions`, `learnings`, `exploration`, `verify`
+- jira oriented: `jira-context`, `confluence`, `ship`
 
 ## Enforced Checks
 
@@ -482,6 +506,7 @@ Installs CLI, adds both MCP servers, verifies authentication.
   "project_type": "brownfield",
   "project_dir": "/absolute/path",
   "user_request": "original request",
+  "execution_mode": "prompt",
   "current_phase": "build",
   "phase_attempt": 1,
   "total_backtracks": 0,
@@ -502,7 +527,8 @@ Installs CLI, adds both MCP servers, verifies authentication.
   "worktree_created": true,
   "worktree_cleaned": false,
 
-  // --- Jira fields (source == "jira" only) ---
+  // --- Jira fields (execution_mode == "jira" only) ---
+  "execution_mode": "jira",
   "source": "jira",
   "jira_issue_key": "PROJ-123",
   "jira_issue_type": "Story",

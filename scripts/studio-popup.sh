@@ -28,6 +28,9 @@ resolve_target() {
       ;;
     verify) printf '%s\n' "$SESSION_DIR/verify-result.json" ;;
     summary) printf '%s\n' "$SESSION_DIR/session-summary.md" ;;
+    jira-context) printf '%s\n' "$SESSION_DIR/jira-context.json" ;;
+    confluence) printf '%s\n' "$SESSION_DIR/confluence-context.md" ;;
+    ship) printf '%s\n' "$SESSION_DIR/ship-result.json" ;;
     help) printf '%s\n' "$SESSION_DIR/studio-help.txt" ;;
     contracts) printf '%s\n' "$SESSION_DIR/contracts" ;;
     build-result)

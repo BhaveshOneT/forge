@@ -176,6 +176,33 @@ forge_studio_session_name() {
   printf 'forge-%s\n' "$session_id"
 }
 
+forge_execution_mode_from_state() {
+  local state_file="${1:?state file required}"
+
+  python3 - "$state_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    data = json.load(handle)
+
+mode = data.get("execution_mode")
+if mode in {"prompt", "jira"}:
+    print(mode)
+    sys.exit(0)
+
+if data.get("source") == "jira":
+    print("jira")
+else:
+    print("prompt")
+PY
+}
+
+forge_is_jira_mode() {
+  local state_file="${1:?state file required}"
+  [ "$(forge_execution_mode_from_state "$state_file")" = "jira" ]
+}
+
 forge_resolve_workspace_dir() {
   local requested_dir="${1:-}"
   local fallback_dir="${2:-}"

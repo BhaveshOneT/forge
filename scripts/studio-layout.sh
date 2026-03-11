@@ -23,6 +23,9 @@ apply_bindings() {
   tmux bind-key l if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-popup.sh\" open \"#{@forge_session_dir}\" learnings'" ""
   tmux bind-key e if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-popup.sh\" open \"#{@forge_session_dir}\" exploration'" ""
   tmux bind-key v if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-popup.sh\" open \"#{@forge_session_dir}\" verify'" ""
+  tmux bind-key j if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-popup.sh\" open \"#{@forge_session_dir}\" jira-context'" ""
+  tmux bind-key o if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-popup.sh\" open \"#{@forge_session_dir}\" confluence'" ""
+  tmux bind-key h if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-popup.sh\" open \"#{@forge_session_dir}\" ship'" ""
   tmux bind-key \? if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-popup.sh\" open \"#{@forge_session_dir}\" help'" ""
   tmux bind-key m if-shell -F '#{==:#{@forge_studio},true}' "run-shell 'bash \"$SCRIPT_DIR/studio-layout.sh\" toggle \"#{@forge_session_dir}\"'" ""
 }
@@ -114,6 +117,8 @@ PY
   bash "$SCRIPT_DIR/validate-json.sh" "$ROOT_DIR/schemas/studio-layout.schema.json" "$LAYOUT_FILE" >/dev/null
 
   forge_update_json_file "$STATE_FILE" "
+if data.get('execution_mode') not in ('prompt', 'jira'):
+    data['execution_mode'] = 'jira' if data.get('source') == 'jira' else 'prompt'
 data['studio_enabled'] = True
 data['studio_session_name'] = '$session_name'
 data['studio_layout_mode'] = '$mode'

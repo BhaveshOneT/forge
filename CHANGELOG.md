@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.0 — 2026-03-11
+
+### Added
+- Formal `execution_mode` support for both default prompt-driven sessions and Jira-driven sessions
+- Mode-aware Forge Studio rendering, help text, activity summaries, and popup targets
+- Jira popup targets for `jira-context.json`, `confluence-context.md`, and `ship-result.json`
+
+### Changed
+- `/forge` is now documented explicitly as prompt mode while `/forge:jira` and `/forge:jira-sync` are Jira mode
+- Forge Studio now shows entry mode separately from layout mode
+- Compatibility fallback keeps older sessions working by inferring Jira mode from legacy `source: "jira"`
+
 ## 1.3.0 — 2026-03-11
 
 ### Added

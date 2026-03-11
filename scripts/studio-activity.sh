@@ -17,10 +17,17 @@ ACTIVITY_FILE="$SESSION_DIR/studio-activity.log"
 
 PHASE="$(forge_json_get "$STATE_FILE" "data.get('current_phase', 'unknown')")"
 CHECKPOINT="$(forge_json_get "$STATE_FILE" "data.get('checkpoint', 'No checkpoint yet')")"
-MODE="$(forge_json_get "$STATE_FILE" "data.get('studio_layout_mode', 'unknown')")"
+LAYOUT_MODE="$(forge_json_get "$STATE_FILE" "data.get('studio_layout_mode', 'unknown')")"
 TIER="$(forge_json_get "$STATE_FILE" "data.get('tier', '?')")"
+EXECUTION_MODE="$(forge_execution_mode_from_state "$STATE_FILE")"
 SUMMARY_TARGET="none"
-if [ -f "$SESSION_DIR/review-issues.json" ]; then
+if [ "$EXECUTION_MODE" = "jira" ] && [ -f "$SESSION_DIR/jira-context.json" ]; then
+  SUMMARY_TARGET="jira-context.json"
+elif [ "$EXECUTION_MODE" = "jira" ] && [ -f "$SESSION_DIR/confluence-context.md" ]; then
+  SUMMARY_TARGET="confluence-context.md"
+elif [ "$EXECUTION_MODE" = "jira" ] && [ -f "$SESSION_DIR/ship-result.json" ]; then
+  SUMMARY_TARGET="ship-result.json"
+elif [ -f "$SESSION_DIR/review-issues.json" ]; then
   SUMMARY_TARGET="review-issues.json"
 elif [ -f "$SESSION_DIR/plan.md" ]; then
   SUMMARY_TARGET="plan.md"
@@ -29,7 +36,7 @@ elif [ -f "$SESSION_DIR/requirements.md" ]; then
 fi
 
 cat >"$ACTIVITY_FILE" <<EOF
-$(forge_iso_timestamp) phase=$PHASE tier=$TIER mode=$MODE
+$(forge_iso_timestamp) phase=$PHASE tier=$TIER mode=$EXECUTION_MODE layout=$LAYOUT_MODE
 checkpoint: $CHECKPOINT
 artifact: $SUMMARY_TARGET
 EOF

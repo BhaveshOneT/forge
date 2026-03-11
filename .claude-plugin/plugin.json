@@ -1,7 +1,7 @@
 {
   "name": "forge",
-  "version": "1.3.0",
-  "description": "Dynamic agent orchestrator that adapts to task complexity and launches Forge Studio, a tmux-based terminal IDE workspace, for every run.",
+  "version": "1.4.0",
+  "description": "Dynamic agent orchestrator with prompt and Jira execution modes, adaptive tier routing, and Forge Studio terminal IDE workspace.",
   "hooks": "./hooks/hooks.json",
   "author": {
     "name": "BhaveshOneT"

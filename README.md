@@ -1,24 +1,24 @@
 # Forge — Dynamic Agent Orchestrator
 
-A Claude Code plugin that adapts to task complexity and launches Forge Studio, a tmux-based terminal IDE workspace, for every run.
+A Claude Code plugin that supports both traditional prompt-driven work and Jira-driven execution, adapts to task complexity, and launches Forge Studio, a tmux-based terminal IDE workspace, for every run.
 
 ## Mental Model
 
 Forge is a manager prompt plus a small shell runtime. The manager scores the task, chooses the lightest execution path that can still do the job safely, and persists state to disk so interrupted sessions resume from files instead of chat history.
 
 ```text
-user request
+user chooses input path
     |
-    v
-+-----------+
-| CLASSIFY  | clarity + scope + keywords + repo size
-+-----------+
+    +--> /forge "..."        -> execution_mode=prompt
     |
-    +--> Tier 1: manager executes directly in Forge Studio focus mode
-    |
-    +--> Tier 2: Explorer -> Builder -> Reviewer in Forge Studio build mode
-    |
-    `--> Tier 3: Explorer x2 -> Architect -> Builder -> Reviewer x2 -> Verify in Forge Studio swarm mode
+    `--> /forge:jira / sync  -> execution_mode=jira
+                 |
+                 v
+             CLASSIFY
+                 |
+                 +--> Tier 1 -> Forge Studio focus
+                 +--> Tier 2 -> Forge Studio build
+                 `--> Tier 3 -> Forge Studio swarm
 ```
 
 ## Installation
@@ -65,19 +65,30 @@ bash ~/.claude/plugins/forge/scripts/setup-hooks.sh
 
 ## Usage
 
+### Two Entry Modes
+
+Forge has two official entry modes:
+
+- `prompt` — the default path for normal pasted prompts via `/forge "..."`
+- `jira` — board or issue driven execution via `/forge:jira ...` or `/forge:jira-sync`
+
+Execution mode decides how work enters Forge. Tier decides how much orchestration Forge uses. Forge Studio is used for both.
+
 ```
-/forge "fix the typo in the README"            → Tier 1: Forge Studio focus mode
-/forge "add user authentication to the API"    → Tier 2: Forge Studio build mode
-/forge "build a real-time chat system"         → Tier 3: Forge Studio swarm mode
+/forge "fix the typo in the README"            → prompt mode + Tier 1 + Forge Studio focus
+/forge "add user authentication to the API"    → prompt mode + Tier 2 + Forge Studio build
+/forge "build a real-time chat system"         → prompt mode + Tier 3 + Forge Studio swarm
+/forge:jira PROJ-123                           → jira mode + classified tier + Forge Studio
+/forge:jira-sync                               → jira mode + classified tier + Forge Studio
 ```
 
 ### Commands
 
 | Command | Description |
 |---------|-------------|
-| `/forge "<task>"` | Start a new task |
-| `/forge:jira PROJ-123` | Build from a Jira issue |
-| `/forge:jira-sync` | Auto-pick highest-priority ready issue |
+| `/forge "<task>"` | Start a prompt-mode task |
+| `/forge:jira PROJ-123` | Start a Jira-mode task from an issue |
+| `/forge:jira-sync` | Start a Jira-mode task from the board |
 | `/forge:resume` | Resume an interrupted session |
 | `/forge:status` | Show session status |
 
@@ -87,9 +98,9 @@ bash ~/.claude/plugins/forge/scripts/setup-hooks.sh
 
 Every request is classified on 4 signals (clarity, scope, keywords, project state) scored 0-16:
 
-| Tier | Score | Agents | Studio Mode | Session |
-|------|-------|--------|-------------|---------|
-| **Simple** | 0-3 | 0 | Focus | No |
+| Tier | Score | Agents | Studio Mode | Studio |
+|------|-------|--------|-------------|--------|
+| **Simple** | 0-3 | 0 | Focus | Yes |
 | **Medium** | 4-8 | 3 (sequential) | Build | Yes |
 | **Complex** | 9+ | 6 (parallel) | Swarm | Yes |
 
@@ -286,7 +297,10 @@ Tier 1 (simple tasks, 0-3 complexity) skips worktrees — overhead isn't worth i
 
 ## Forge Studio
 
-Forge Studio is the default tmux workspace for every Forge run.
+Forge Studio is the default tmux workspace for every Forge run. It is aware of both:
+
+- `execution_mode`: `prompt` or `jira`
+- `studio_layout_mode`: `focus`, `build`, or `swarm`
 
 ```text
 +--------------------------------------------------------------+
@@ -336,7 +350,8 @@ Studio popup map:
 prefix+r requirements   prefix+p plan        prefix+i review issues
 prefix+d decisions      prefix+l learnings   prefix+e exploration
 prefix+v verify         prefix+g git focus   prefix+s status focus
-prefix+c main focus     prefix+m mode toggle prefix+? help
+prefix+c main focus     prefix+m layout      prefix+? help
+prefix+j jira context   prefix+o confluence  prefix+h ship result
 ```
 
 Status pane example:
@@ -361,6 +376,8 @@ Status pane example:
 ```
 
 The workspace persists after completion so you can review changes, logs, and artifacts before closing it.
+
+Prompt mode emphasizes the user request, requirements, checkpoint, and implementation artifacts. Jira mode emphasizes issue context, Confluence enrichment, shipping state, and the extended Jira pipeline.
 
 ## Compaction Resilience
 
