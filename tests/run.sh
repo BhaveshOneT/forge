@@ -327,15 +327,19 @@ run_studio_dependency_tests() {
   fake_bin="$tmp_root/bin"
   mkdir -p "$fake_bin"
 
+  # Create a controlled PATH with only the tools we want
+  ln -s "$(command -v bash)" "$fake_bin/bash"
+  ln -s "$(command -v python3)" "$fake_bin/python3"
+  ln -s "$(command -v env)" "$fake_bin/env" 2>/dev/null || true
   ln -s "$(command -v tmux)" "$fake_bin/tmux"
   printf '#!/usr/bin/env bash\nexit 0\n' >"$fake_bin/lazygit"
   chmod +x "$fake_bin/lazygit"
 
-  PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" >/dev/null
+  PATH="$fake_bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" >/dev/null
 
   rm -f "$fake_bin/lazygit"
   set +e
-  output="$(PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" 2>&1)"
+  output="$(PATH="$fake_bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" 2>&1)"
   status=$?
   set -e
   [ "$status" -ne 0 ] || fail "studio-check-deps should fail without lazygit"
@@ -345,7 +349,7 @@ run_studio_dependency_tests() {
   chmod +x "$fake_bin/lazygit"
   rm -f "$fake_bin/tmux"
   set +e
-  output="$(PATH="$fake_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" 2>&1)"
+  output="$(PATH="$fake_bin" bash "$ROOT_DIR/scripts/studio-check-deps.sh" 2>&1)"
   status=$?
   set -e
   [ "$status" -ne 0 ] || fail "studio-check-deps should fail without tmux"

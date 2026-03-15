@@ -52,7 +52,7 @@ case "$COMMAND" in
     WORKSPACE_DIR="$(forge_resolve_workspace_dir "$PROJECT_DIR" "$SESSION_DIR")"
     SESSION_NAME="$(resolve_session_name "$SESSION_DIR")"
     if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-      tmux new-session -d -s "$SESSION_NAME" -c "$WORKSPACE_DIR"
+      tmux new-session -d -s "$SESSION_NAME" -x 200 -y 50 -c "$WORKSPACE_DIR"
     fi
     forge_tmux_set_option "$SESSION_NAME" "@forge_studio" "true"
     forge_tmux_set_option "$SESSION_NAME" "@forge_session_dir" "$SESSION_DIR"

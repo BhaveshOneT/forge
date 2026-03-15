@@ -49,6 +49,17 @@
     "notes": {
       "type": "string",
       "minLength": 1
+    },
+    "error_output": {
+      "type": "string"
+    },
+    "tests_run_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "tests_failed_count": {
+      "type": "integer",
+      "minimum": 0
     }
   }
 }

@@ -31,6 +31,16 @@
     },
     "jira_new_status": {
       "type": "string"
+    },
+    "commit_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{7,40}$"
+    },
+    "pr_title": {
+      "type": "string"
+    },
+    "base_branch": {
+      "type": "string"
     }
   }
 }

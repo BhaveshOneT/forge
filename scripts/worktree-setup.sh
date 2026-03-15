@@ -27,6 +27,22 @@ if ! git rev-parse --verify "$BASE_BRANCH" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Handle existing worktree path
+if [ -d "$WORKTREE_PATH" ]; then
+  # Check if it's a valid worktree already
+  if git -C "$WORKTREE_PATH" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "WORKTREE_PATH=$WORKTREE_PATH"
+    EXISTING_BRANCH=$(git -C "$WORKTREE_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    echo "WORKTREE_BRANCH=$EXISTING_BRANCH"
+    echo "OK (existing worktree)"
+    exit 0
+  else
+    # Directory exists but isn't a valid worktree — prune and retry
+    git worktree prune 2>/dev/null || true
+    rm -rf "$WORKTREE_PATH"
+  fi
+fi
+
 # Create the worktree on a new branch from base
 if git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "$BASE_BRANCH" 2>/dev/null; then
   echo "WORKTREE_PATH=$WORKTREE_PATH"

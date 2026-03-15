@@ -22,18 +22,19 @@ DECISIONS_FILE="$ACTIVE_SESSION/context/decisions.md"
 LEARNINGS_FILE="$ACTIVE_SESSION/context/loop-learnings.md"
 RECOVERY_FILE="$ACTIVE_SESSION/recovery-state.md"
 
-# Read current state
-PHASE="$(forge_json_get "$STATE_FILE" "data['current_phase']")"
-ATTEMPT="$(forge_json_get "$STATE_FILE" "data.get('phase_attempt', 1)")"
-BACKTRACKS="$(forge_json_get "$STATE_FILE" "data.get('total_backtracks', 0)")"
-TIER="$(forge_json_get "$STATE_FILE" "data['tier']")"
-LOOP="$(forge_json_get "$STATE_FILE" "data.get('build_review_loop', 0)")"
-CHECKPOINT="$(forge_json_get "$STATE_FILE" "data.get('checkpoint', 'unknown')")"
-SESSION_ID="$(forge_json_get "$STATE_FILE" "data['session_id']")"
-SOURCE="$(forge_json_get "$STATE_FILE" "data.get('source', '')")"
-EXECUTION_MODE="$(forge_execution_mode_from_state "$STATE_FILE")"
-JIRA_KEY="$(forge_json_get "$STATE_FILE" "data.get('jira_issue_key', '')")"
-WORKTREE_PATH="$(forge_json_get "$STATE_FILE" "data.get('worktree_path', '')")"
+# Read current state (with safe fallbacks)
+PHASE="$(forge_json_get "$STATE_FILE" "data.get('current_phase', 'unknown')" 2>/dev/null || echo 'unknown')"
+ATTEMPT="$(forge_json_get "$STATE_FILE" "data.get('phase_attempt', 1)" 2>/dev/null || echo '1')"
+BACKTRACKS="$(forge_json_get "$STATE_FILE" "data.get('total_backtracks', 0)" 2>/dev/null || echo '0')"
+TIER="$(forge_json_get "$STATE_FILE" "data.get('tier', 1)" 2>/dev/null || echo '1')"
+LOOP="$(forge_json_get "$STATE_FILE" "data.get('build_review_loop', 0)" 2>/dev/null || echo '0')"
+CHECKPOINT="$(forge_json_get "$STATE_FILE" "data.get('checkpoint', 'unknown')" 2>/dev/null || echo 'unknown')"
+SESSION_ID="$(forge_json_get "$STATE_FILE" "data.get('session_id', 'unknown')" 2>/dev/null || echo 'unknown')"
+SOURCE="$(forge_json_get "$STATE_FILE" "data.get('source', '')" 2>/dev/null || echo '')"
+EXECUTION_MODE="$(forge_execution_mode_from_state "$STATE_FILE" 2>/dev/null || echo 'prompt')"
+JIRA_KEY="$(forge_json_get "$STATE_FILE" "data.get('jira_issue_key', '')" 2>/dev/null || echo '')"
+WORKTREE_PATH="$(forge_json_get "$STATE_FILE" "data.get('worktree_path', '')" 2>/dev/null || echo '')"
+PROJECT_DIR="$(forge_json_get "$STATE_FILE" "data.get('project_dir', '')" 2>/dev/null || echo '')"
 
 RECENT_DECISIONS="$(forge_recent_excerpt "$DECISIONS_FILE" 20)"
 RECENT_LEARNINGS="$(forge_recent_excerpt "$LEARNINGS_FILE" 15)"
@@ -52,6 +53,7 @@ cat > "$RECOVERY_FILE" << EOF
 **Execution Mode**: $EXECUTION_MODE
 **Legacy Source**: $SOURCE
 **Jira Issue**: $JIRA_KEY
+**Project Dir**: $PROJECT_DIR
 **Worktree**: $WORKTREE_PATH
 
 ## Recovery Instructions

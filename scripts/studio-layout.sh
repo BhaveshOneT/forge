@@ -74,18 +74,20 @@ create_agent_panes() {
   local -a agent_panes=()
   local current_target pane_id agent_id agent_name
 
+  local specs_output
+  specs_output="$(active_agent_specs "$mode")"
   while IFS= read -r line; do
     [ -n "$line" ] && agent_specs+=("$line")
-  done < <(active_agent_specs "$mode")
+  done <<< "$specs_output"
   [ "${#agent_specs[@]}" -gt 0 ] || return 0
 
-  pane_id="$(tmux split-window -P -F '#{pane_id}' -v -p 68 -t "$git_pane" -c "$workspace_dir")"
+  pane_id="$(tmux split-window -P -F '#{pane_id}' -v -l 34 -t "$git_pane" -c "$workspace_dir")"
   agent_panes+=("$pane_id")
   current_target="$pane_id"
 
   local idx
   for ((idx = 1; idx < ${#agent_specs[@]}; idx++)); do
-    pane_id="$(tmux split-window -P -F '#{pane_id}' -v -p 50 -t "$current_target" -c "$workspace_dir")"
+    pane_id="$(tmux split-window -P -F '#{pane_id}' -v -l 16 -t "$current_target" -c "$workspace_dir")"
     agent_panes+=("$pane_id")
     current_target="$pane_id"
   done
@@ -120,22 +122,22 @@ apply_layout() {
   local session_name="${3:?session name required}"
   local tier="${4:?tier required}"
   local workspace_dir
-  local right_percent=30
+  local right_cols=60
   local bottom_lines=14
 
   workspace_dir="$(forge_resolve_workspace_dir "$project_dir" "$SESSION_DIR")"
 
   case "$mode" in
     focus)
-      right_percent=24
+      right_cols=48
       bottom_lines=12
       ;;
     build)
-      right_percent=30
+      right_cols=60
       bottom_lines=14
       ;;
     swarm)
-      right_percent=34
+      right_cols=68
       bottom_lines=16
       ;;
     *)
@@ -155,7 +157,7 @@ apply_layout() {
   tmux select-pane -t "$main_pane" -T "Forge Studio: Claude"
   tmux send-keys -t "$main_pane" C-l
   local git_pane
-  git_pane="$(tmux split-window -P -F '#{pane_id}' -h -p "$right_percent" -t "$main_pane" -c "$workspace_dir")"
+  git_pane="$(tmux split-window -P -F '#{pane_id}' -h -l "$right_cols" -t "$main_pane" -c "$workspace_dir")"
   local status_pane
   status_pane="$(tmux split-window -P -F '#{pane_id}' -v -l "$bottom_lines" -t "$main_pane" -c "$workspace_dir")"
   local agent_metadata="[]"

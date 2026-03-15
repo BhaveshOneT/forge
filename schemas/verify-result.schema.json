@@ -50,6 +50,28 @@
     "notes": {
       "type": "string",
       "minLength": 1
+    },
+    "test_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "test_failures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "lint_errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "typecheck_errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     }
   }
 }
