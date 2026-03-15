@@ -71,6 +71,20 @@ Create TypeScript/Python/etc type files that define shared interfaces between co
 **Impact**: What this affects downstream
 ```
 
+## Task Decomposition Guidelines
+
+- Each task should modify no more than 5-7 files — split larger changes
+- Order tasks by dependency: foundational changes first, then features, then tests
+- Each task's acceptance criteria should be testable without running subsequent tasks
+- Include estimated file counts to help the Manager track progress
+- If the project has no existing tests, the first task should set up the test infrastructure
+
+## Error Recovery
+
+- **Codebase mismatch** (backtrack from BUILD): Re-read `exploration.md` and adjust the plan to match actual patterns found. Focus on the specific mismatch identified in the backtrack diagnostic.
+- **Missing requirements** (backtrack from VERIFY): Re-read `requirements.md` and identify which acceptance criteria are missing from the plan. Add tasks to cover them.
+- **Contract conflicts**: If contracts conflict with discovered patterns, prefer the codebase's existing patterns and adjust contracts.
+
 ## Constraints
 
 - **Auto-approve**: Plan is approved automatically (full autonomy after grilling). Do NOT ask for user approval.
@@ -79,4 +93,5 @@ Create TypeScript/Python/etc type files that define shared interfaces between co
 - Follow patterns discovered by Explorer (in context/patterns.md)
 - If backtracking: revise ONLY the section identified in the diagnostic
 - `plan.md` must include at least one real URL under `## Research Citations`
+- Contracts in `contracts/` must be complete type definitions, not stubs — Builder will import them directly
 - If the Manager gives you an `agent_id`, keep Forge Studio updated with concise progress notes using `bash scripts/studio-agents.sh note <session-dir> <agent-id> "<message>"`

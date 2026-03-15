@@ -202,6 +202,22 @@ Read agent instructions from `agents/forge-<role>.md` (relative to plugin dir). 
 
 See `REFERENCE.md` for full dispatch templates and backtrack matrix.
 
+## Parallel Agent Merge Strategy
+
+### Merging Parallel Explorers (Tier 3)
+After both Explorers complete:
+1. Read `exploration-architecture.md` and `exploration-code.md`
+2. Create unified `exploration.md` with all required headings
+3. Deduplicate overlapping findings, keep the more detailed version
+4. Merge `context/patterns.md` entries (both explorers may append)
+
+### Merging Parallel Reviewers (Tier 3)
+After both Reviewers complete:
+1. Read `review-issues-bugs.json` and `review-issues-alignment.json`
+2. Merge into `review-issues.json`
+3. Deduplicate by file+line — keep the higher-confidence entry
+4. Re-sort: critical first, then major, then minor
+
 ## Build-Review Loop Protocol
 
 After each loop iteration, append to `context/loop-learnings.md`:

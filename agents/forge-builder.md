@@ -61,6 +61,13 @@ This file must conform to `schemas/build-task-result.schema.json`. Do not add ex
 **Impact**: What this affects
 ```
 
+## Error Recovery
+
+- **Compilation failure**: Capture the full error output. If it's a type error or import issue, fix it immediately and re-run. Put the error output in `build-task-N-result.json` `error_output` field. Do not report `compiled: true` unless the build actually succeeds.
+- **Test failure**: Run the failing test in isolation to confirm. If the test itself is wrong (testing old behavior), update it to match new behavior. If your code is wrong, fix the code. Record `tests_run_count` and `tests_failed_count` in the result.
+- **Dependency missing**: Search for the correct package/import name using web research before guessing. Check `patterns.md` for the project's dependency management approach.
+- **Review loop**: Read `review-issues.json` carefully. Address critical issues first, then major. For each fix, verify the fix doesn't introduce a regression by re-running affected tests. Do not touch code unrelated to the review issues.
+
 ## Constraints
 
 - **Import from contracts, never redefine** shared types (Tier 3)
@@ -69,5 +76,5 @@ This file must conform to `schemas/build-task-result.schema.json`. Do not add ex
 - If review loop: address ALL critical and major issues, nothing else
 - If backtracking: fix ONLY the identified issue, do not refactor unrelated code
 - Follow the codebase's existing conventions (from patterns.md), not your preferences
-- `build-task-N-result.json` is a contract with the manager. Keep values factual and machine-checkable.
+- `build-task-N-result.json` is a contract with the manager. Keep values factual and machine-checkable. Never report `compiled: true` or `tests_passed: true` without actually running the build/tests.
 - If the Manager gives you an `agent_id`, keep Forge Studio updated with concise progress notes using `bash scripts/studio-agents.sh note <session-dir> <agent-id> "<message>"`

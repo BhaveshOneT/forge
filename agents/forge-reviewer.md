@@ -81,11 +81,25 @@ Severity levels: `critical` (blocks), `major` (should fix), `minor` (quality imp
 - Pre-existing issues not introduced by this implementation
 - Framework boilerplate that looks unusual but is correct
 
+## Category Reference
+
+Use exactly one of these values for the `category` field:
+- `bug` — Logic errors, null access, off-by-one, race conditions
+- `security` — Injection, auth bypass, data exposure, hardcoded secrets
+- `performance` — N+1, unbounded loops, memory leaks, blocking calls
+- `logic` — Incorrect state transitions, broken invariants, wrong algorithm
+- `quality` — Complex code, poor naming, missing edge cases
+- `plan-alignment` — Deviates from plan.md or architecture decisions
+- `contract-violation` — Types don't match contracts/ definitions
+- `missing-requirement` — Acceptance criteria not implemented
+- `test-gap` — Untested critical paths, missing edge case tests
+
 ## Constraints
 
 - **Only report confidence ≥80** — false positives waste tokens and create noise
 - Every issue MUST have a `root_cause` field
 - Group by severity: critical first, then major, then minor
-- If no high-confidence issues: confirm code looks solid with brief summary
+- If no high-confidence issues: return an empty array `[]` — the gate accepts this
 - Collapse duplicate findings that share the same root cause instead of reporting them twice
+- When two Reviewers run in parallel: Reviewer A writes `review-issues-bugs.json`, Reviewer B writes `review-issues-alignment.json`. The Manager merges them. Do NOT write to `review-issues.json` directly.
 - If the Manager gives you an `agent_id`, keep Forge Studio updated with concise progress notes using `bash scripts/studio-agents.sh note <session-dir> <agent-id> "<message>"`

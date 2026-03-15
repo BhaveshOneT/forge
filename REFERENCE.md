@@ -464,6 +464,23 @@ SHIP               -> ship-result.json       -> check-phase-gate.sh ship
 | Builder | Compiles, tests pass, follows contracts, matches plan task |
 | Reviewer | Issue count by severity (independently counted), confidence ≥80 only |
 
+## Phase Transition Quick Reference
+
+```
+Phase            → On Success              → On Failure
+─────────────────┼──────────────────────────┼────────────────────
+CLASSIFY         → GRILL                   → (cannot fail)
+GRILL            → EXPLORE                 → (cannot fail)
+EXPLORE          → ARCHITECT (T3) / BUILD  → EXPLORE retry
+ARCHITECT        → BUILD                   → EXPLORE / USER
+BUILD            → REVIEW                  → ARCHITECT / BUILD retry
+REVIEW (clean)   → VERIFY (T3) / COMPOUND  → (no failure)
+REVIEW (issues)  → BUILD (loop)            → (n/a)
+VERIFY           → SHIP (jira) / COMPOUND  → BUILD / ARCHITECT
+SHIP             → COMPOUND                → USER
+COMPOUND         → COMPLETE                → (cannot fail)
+```
+
 ---
 
 ## Mandatory Web Research Protocol (Parallel CLI)
