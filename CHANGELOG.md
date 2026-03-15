@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.6.0 — 2026-03-15
+
+### Added
+- 16 new destructive guard patterns: dangerous file removal, branch deletion on main/master, stash clearing, database drops, chmod 777, system shutdown/reboot
+- Enriched JSON schemas: jira-context gains priority/labels/subtasks/acceptance_criteria; ship-result gains commit_sha/pr_title/base_branch; build-task-result gains error_output and test counts; verify-result gains detailed error arrays; review-issues category uses an enum for consistency
+- Error recovery guidance in all 4 agent instructions (Explorer, Architect, Builder, Reviewer)
+- Parallel agent merge strategy in SKILL.md (explorer merge, reviewer dedup by file+line)
+- Phase transition quick reference table in REFERENCE.md
+- Category enum reference in Reviewer instructions matching the schema
+- Task decomposition guidelines in Architect instructions
+- 5 new test suites: extended destructive guard, schema validation, common library, phase gate negatives, popup resolve
+
+### Fixed
+- Studio layout now uses absolute column/line sizes instead of percentages for tmux 3.4+ compatibility
+- Studio session creation sets default terminal size (-x 200 -y 50) for headless environments
+- Process substitution in studio-layout.sh replaced with heredoc for environments lacking /dev/fd
+- Worktree setup handles path collisions gracefully (reuses valid worktrees, prunes stale ones)
+- Pre-compact recovery reads all state fields with safe fallbacks and includes project_dir
+- Studio dependency tests now use properly isolated PATH
+
 ## 1.5.0 — 2026-03-11
 
 ### Added

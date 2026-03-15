@@ -81,7 +81,7 @@ def fmt_phase_line(name):
 
 lines = []
 lines.append("┌" + "─" * 74 + "┐")
-header = f" Forge Studio: {session_id}"
+header = f" Forge Studio v1.6.0: {session_id}"
 header_right = f"entry={execution_mode} layout={layout_mode} status={studio_status}"
 header_left_width = max(1, 74 - len(header_right))
 header_left = header[:header_left_width].ljust(header_left_width)

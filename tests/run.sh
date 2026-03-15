@@ -602,8 +602,8 @@ EOF
 }
 
 run_metadata_tests() {
-  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.5.0"'
-  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.5.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"version": "1.6.0"'
+  assert_file_contains "$ROOT_DIR/.claude-plugin/marketplace.json" '"version": "1.6.0"'
   assert_file_contains "$ROOT_DIR/.claude-plugin/plugin.json" '"hooks": "./hooks/hooks.json"'
   assert_file_contains "$ROOT_DIR/hooks/hooks.json" '${CLAUDE_PLUGIN_ROOT}'
   assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'

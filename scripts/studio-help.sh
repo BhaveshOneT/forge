@@ -19,8 +19,8 @@ if [ -f "$STATE_FILE" ]; then
 fi
 
 cat >"$HELP_FILE" <<EOF
-Forge Studio
-============
+Forge Studio v1.6.0
+====================
 
 Execution mode: $EXECUTION_MODE
 Layout mode: $LAYOUT_MODE

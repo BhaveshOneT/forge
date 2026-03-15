@@ -63,6 +63,24 @@ To validate the packaged hook wiring:
 bash ~/.claude/plugins/forge/scripts/setup-hooks.sh
 ```
 
+## Quick Start
+
+```bash
+# Install
+git clone https://github.com/BhaveshOneT/forge.git ~/.claude/plugins/forge
+
+# Verify dependencies
+bash ~/.claude/plugins/forge/scripts/studio-check-deps.sh
+
+# Run your first task
+/forge "add a health check endpoint to the API"
+
+# For Jira integration (optional)
+claude mcp add --transport sse atlassian https://mcp.atlassian.com/v1/sse
+bash ~/.claude/plugins/forge/scripts/jira-config-init.sh
+/forge:jira PROJ-123
+```
+
 ## Usage
 
 ### Two Entry Modes
@@ -423,7 +441,7 @@ active session
 
 The runtime safety story is deliberately small and mechanical:
 
-- `scripts/destructive-guard.sh` blocks obviously destructive Bash tool calls before execution.
+- `scripts/destructive-guard.sh` blocks 28+ destructive Bash patterns before execution (dangerous file removal, branch deletion on main/master, stash clearing, database drops, disk overwrites, system shutdown, and more).
 - Tier 2 and Tier 3 sessions work in git worktrees rather than the main checkout.
 - Recovery always re-reads `forge-state.json`; chat memory is not the source of truth.
 - Forge Studio owns a dedicated tmux session per Forge run and keeps pane metadata in session state.
