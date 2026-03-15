@@ -609,6 +609,405 @@ run_metadata_tests() {
   assert_file_contains "$ROOT_DIR/.claude/settings.json" '${CLAUDE_PROJECT_DIR}'
 }
 
+run_extended_destructive_guard_tests() {
+  local stdout_file stderr_file status
+  stdout_file="$(mktemp)"
+  stderr_file="$(mktemp)"
+
+  # Test new patterns added in hardening
+  local dangerous_commands=(
+    'git branch -D master'
+    'chmod -R 777 /tmp'
+    'shutdown -h now'
+  )
+
+  for cmd in "${dangerous_commands[@]}"; do
+    set +e
+    printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$cmd" |
+      bash "$ROOT_DIR/scripts/destructive-guard.sh" >"$stdout_file" 2>"$stderr_file"
+    status=$?
+    set -e
+    [ "$status" -eq 2 ] || fail "destructive guard should block '$cmd'"
+  done
+
+  # Test safe commands still pass
+  local safe_commands=(
+    'git log --oneline'
+    'ls -la'
+    'python3 --version'
+    'git branch -a'
+    'git status'
+  )
+
+  for cmd in "${safe_commands[@]}"; do
+    set +e
+    printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$cmd" |
+      bash "$ROOT_DIR/scripts/destructive-guard.sh" >"$stdout_file" 2>"$stderr_file"
+    status=$?
+    set -e
+    [ "$status" -eq 0 ] || fail "destructive guard should allow '$cmd'"
+  done
+
+  # Test malformed JSON passes gracefully
+  set +e
+  printf 'not-json' |
+    bash "$ROOT_DIR/scripts/destructive-guard.sh" >"$stdout_file" 2>"$stderr_file"
+  status=$?
+  set -e
+  [ "$status" -eq 0 ] || fail "destructive guard should pass on malformed JSON"
+
+  # Test empty command passes
+  set +e
+  printf '{"tool_name":"Bash","tool_input":{"command":""}}' |
+    bash "$ROOT_DIR/scripts/destructive-guard.sh" >"$stdout_file" 2>"$stderr_file"
+  status=$?
+  set -e
+  [ "$status" -eq 0 ] || fail "destructive guard should pass on empty command"
+
+  rm -f "$stdout_file" "$stderr_file"
+}
+
+run_schema_validation_tests() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' RETURN
+
+  # Test build-task-result schema with optional new fields
+  cat >"$tmp_root/build-result.json" <<'EOF'
+{
+  "task_number": 1,
+  "status": "failed",
+  "files_created": [],
+  "files_modified": ["src/index.ts"],
+  "tests_written": [],
+  "compiled": false,
+  "tests_passed": false,
+  "notes": "compilation error in types",
+  "error_output": "TS2345: Argument of type 'string' is not assignable",
+  "tests_run_count": 0,
+  "tests_failed_count": 0
+}
+EOF
+  bash "$ROOT_DIR/scripts/validate-json.sh" "$ROOT_DIR/schemas/build-task-result.schema.json" "$tmp_root/build-result.json" >/dev/null
+
+  # Test review-issues schema with category enum
+  cat >"$tmp_root/review-issues.json" <<'EOF'
+[
+  {
+    "severity": "critical",
+    "file": "src/handler.ts",
+    "line": 42,
+    "issue": "Missing null check",
+    "root_cause": "Builder assumed input is always valid",
+    "suggestion": "Add null guard",
+    "confidence": 95,
+    "category": "bug"
+  },
+  {
+    "severity": "minor",
+    "file": "src/utils.ts",
+    "line": 10,
+    "issue": "Complex nested ternary",
+    "root_cause": "Rushed implementation",
+    "suggestion": "Extract to named function",
+    "confidence": 82,
+    "category": "quality"
+  }
+]
+EOF
+  bash "$ROOT_DIR/scripts/validate-json.sh" "$ROOT_DIR/schemas/review-issues.schema.json" "$tmp_root/review-issues.json" >/dev/null
+
+  # Test review-issues rejects invalid category
+  cat >"$tmp_root/bad-review.json" <<'EOF'
+[
+  {
+    "severity": "critical",
+    "file": "src/x.ts",
+    "line": 1,
+    "issue": "bad",
+    "root_cause": "bad",
+    "suggestion": "fix",
+    "confidence": 90,
+    "category": "not-a-real-category"
+  }
+]
+EOF
+  set +e
+  bash "$ROOT_DIR/scripts/validate-json.sh" "$ROOT_DIR/schemas/review-issues.schema.json" "$tmp_root/bad-review.json" >/dev/null 2>&1
+  local status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "review-issues schema should reject invalid category"
+
+  # Test verify-result with optional new fields
+  cat >"$tmp_root/verify-result.json" <<'EOF'
+{
+  "build_passed": true,
+  "lint_configured": true,
+  "lint_passed": true,
+  "typecheck_configured": true,
+  "typecheck_passed": true,
+  "tests_passed": true,
+  "requirements_checked": true,
+  "requirements_gaps": [],
+  "overall_status": "passed",
+  "notes": "all checks passed",
+  "test_count": 42,
+  "test_failures": [],
+  "lint_errors": [],
+  "typecheck_errors": []
+}
+EOF
+  bash "$ROOT_DIR/scripts/validate-json.sh" "$ROOT_DIR/schemas/verify-result.schema.json" "$tmp_root/verify-result.json" >/dev/null
+
+  # Test ship-result with optional new fields
+  cat >"$tmp_root/ship-result.json" <<'EOF'
+{
+  "branch": "forge/PROJ-123-feature",
+  "pr_url": "https://github.com/org/repo/pull/99",
+  "pr_number": 99,
+  "jira_comment_added": true,
+  "jira_transitioned": true,
+  "jira_new_status": "In Review",
+  "commit_sha": "abc1234",
+  "pr_title": "[PROJ-123] Add user auth",
+  "base_branch": "main"
+}
+EOF
+  bash "$ROOT_DIR/scripts/validate-json.sh" "$ROOT_DIR/schemas/ship-result.schema.json" "$tmp_root/ship-result.json" >/dev/null
+
+  # Test jira-context with enriched fields
+  cat >"$tmp_root/jira-context.json" <<'EOF'
+{
+  "issue_key": "PROJ-456",
+  "summary": "Add search feature",
+  "description": "Implement full-text search",
+  "issue_type": "Story",
+  "priority": "High",
+  "status": "In Progress",
+  "labels": ["backend", "search"],
+  "acceptance_criteria": "Search returns relevant results within 200ms",
+  "subtasks": [
+    {"key": "PROJ-457", "summary": "Add search index", "status": "To Do"}
+  ]
+}
+EOF
+  bash "$ROOT_DIR/scripts/validate-json.sh" "$ROOT_DIR/schemas/jira-context.schema.json" "$tmp_root/jira-context.json" >/dev/null
+
+  trap - RETURN
+  rm -rf "$tmp_root"
+}
+
+run_common_library_tests() {
+  local tmp_root
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' RETURN
+
+  # Test forge_is_safe_identifier
+  source "$ROOT_DIR/scripts/lib/forge-common.sh"
+  forge_is_safe_identifier "forge-20260311-143022" || fail "safe identifier rejected"
+  forge_is_safe_identifier "my.session.name" || fail "dotted identifier rejected"
+  ! forge_is_safe_identifier "../escape" || fail "path traversal not rejected"
+  ! forge_is_safe_identifier "" || fail "empty identifier not rejected"
+  ! forge_is_safe_identifier "has/slash" || fail "slash identifier not rejected"
+
+  # Test forge_write_json + forge_json_get roundtrip
+  forge_write_json "$tmp_root/test.json" '{"key": "value", "num": 42}'
+  local val
+  val="$(forge_json_get "$tmp_root/test.json" "data['key']")"
+  [ "$val" = "value" ] || fail "forge_json_get returned '$val' instead of 'value'"
+  val="$(forge_json_get "$tmp_root/test.json" "data['num']")"
+  [ "$val" = "42" ] || fail "forge_json_get returned '$val' instead of '42'"
+
+  # Test forge_update_json_file
+  forge_update_json_file "$tmp_root/test.json" "data['new_key'] = 'added'"
+  val="$(forge_json_get "$tmp_root/test.json" "data['new_key']")"
+  [ "$val" = "added" ] || fail "forge_update_json_file failed to add key"
+
+  # Test forge_iso_timestamp format
+  local ts
+  ts="$(forge_iso_timestamp)"
+  [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$ ]] || fail "timestamp format invalid: $ts"
+
+  # Test forge_studio_mode_for_tier
+  [ "$(forge_studio_mode_for_tier 1)" = "focus" ] || fail "tier 1 should be focus"
+  [ "$(forge_studio_mode_for_tier 2)" = "build" ] || fail "tier 2 should be build"
+  [ "$(forge_studio_mode_for_tier 3)" = "swarm" ] || fail "tier 3 should be swarm"
+  ! forge_studio_mode_for_tier 4 2>/dev/null || fail "tier 4 should fail"
+
+  # Test forge_recent_excerpt
+  printf 'line1\nline2\nline3\nline4\nline5\n' >"$tmp_root/excerpt.txt"
+  local excerpt
+  excerpt="$(forge_recent_excerpt "$tmp_root/excerpt.txt" 2)"
+  assert_contains "$excerpt" "line4"
+  assert_contains "$excerpt" "line5"
+  assert_not_contains "$excerpt" "line1"
+
+  # Test forge_recent_excerpt with missing file
+  excerpt="$(forge_recent_excerpt "$tmp_root/nonexistent.txt" 5)"
+  [ "$excerpt" = "(none)" ] || fail "missing file should return (none)"
+
+  trap - RETURN
+  rm -rf "$tmp_root"
+}
+
+run_phase_gate_negative_tests() {
+  local tmp_root session_dir status
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' RETURN
+  session_dir="$tmp_root/session"
+  mkdir -p "$session_dir/context" "$session_dir/contracts"
+
+  write_state "$session_dir/forge-state.json" "forge-20260311-170000" "build" "negative tests"
+  set_state_field "$session_dir/forge-state.json" $'data["complexity_score"] = 6\ndata["project_type"] = "brownfield"'
+
+  # Test explore gate fails without exploration.md
+  set +e
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" explore "$session_dir" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "explore gate should fail without exploration.md"
+
+  # Test grill gate fails without requirements.md
+  set +e
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" grill "$session_dir" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "grill gate should fail without requirements.md"
+
+  # Test build gate fails without build result
+  set +e
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" build "$session_dir" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "build gate should fail without build result"
+
+  # Test compound gate fails without session-summary.md
+  set +e
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" compound "$session_dir" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "compound gate should fail without session-summary.md"
+
+  # Test unsupported phase fails
+  set +e
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" "invalid-phase" "$session_dir" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "unsupported phase should fail"
+
+  # Test build gate fails with failed build status
+  cat >"$session_dir/build-task-1-result.json" <<'EOF'
+{
+  "task_number": 1,
+  "status": "failed",
+  "files_created": [],
+  "files_modified": [],
+  "tests_written": [],
+  "compiled": false,
+  "tests_passed": false,
+  "notes": "compilation error"
+}
+EOF
+  set +e
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" build "$session_dir" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "build gate should fail with failed build status"
+
+  # Test review gate fails with low-confidence issues
+  cat >"$session_dir/review-issues.json" <<'EOF'
+[
+  {
+    "severity": "critical",
+    "file": "src/x.ts",
+    "line": 1,
+    "issue": "shaky finding",
+    "root_cause": "uncertain",
+    "suggestion": "maybe fix",
+    "confidence": 50,
+    "category": "bug"
+  }
+]
+EOF
+  set +e
+  bash "$ROOT_DIR/scripts/check-phase-gate.sh" review "$session_dir" >/dev/null 2>&1
+  status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "review gate should fail with low-confidence issues"
+
+  trap - RETURN
+  rm -rf "$tmp_root"
+}
+
+run_popup_resolve_tests() {
+  local tmp_root session_dir popup_path
+  tmp_root="$(mktemp -d)"
+  trap 'rm -rf "$tmp_root"' RETURN
+  session_dir="$tmp_root/session"
+  mkdir -p "$session_dir/context" "$session_dir/contracts"
+
+  # Create minimal artifacts
+  printf 'requirements\n' >"$session_dir/requirements.md"
+  printf 'plan\n' >"$session_dir/plan.md"
+  printf '[]' >"$session_dir/review-issues.json"
+  printf 'decisions\n' >"$session_dir/context/decisions.md"
+  printf 'learnings\n' >"$session_dir/context/loop-learnings.md"
+  printf 'exploration\n' >"$session_dir/exploration.md"
+  printf '{}' >"$session_dir/verify-result.json"
+  printf 'summary\n' >"$session_dir/session-summary.md"
+
+  # Test prompt-mode targets
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" requirements)"
+  assert_contains "$popup_path" "requirements.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" plan)"
+  assert_contains "$popup_path" "plan.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" issues)"
+  assert_contains "$popup_path" "review-issues.json"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" decisions)"
+  assert_contains "$popup_path" "decisions.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" learnings)"
+  assert_contains "$popup_path" "loop-learnings.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" verify)"
+  assert_contains "$popup_path" "verify-result.json"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" summary)"
+  assert_contains "$popup_path" "session-summary.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" contracts)"
+  assert_contains "$popup_path" "contracts"
+
+  # Test jira-mode targets
+  printf '{}' >"$session_dir/jira-context.json"
+  printf 'confluence\n' >"$session_dir/confluence-context.md"
+  printf '{}' >"$session_dir/ship-result.json"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" jira-context)"
+  assert_contains "$popup_path" "jira-context.json"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" confluence)"
+  assert_contains "$popup_path" "confluence-context.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" ship)"
+  assert_contains "$popup_path" "ship-result.json"
+
+  # Test build-result resolution
+  printf '{}' >"$session_dir/build-task-1-result.json"
+  printf '{}' >"$session_dir/build-task-2-result.json"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" build-result)"
+  assert_contains "$popup_path" "build-task-2-result.json"
+
+  # Test exploration fallback to architecture variant
+  rm "$session_dir/exploration.md"
+  printf 'arch\n' >"$session_dir/exploration-architecture.md"
+  popup_path="$(bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" exploration)"
+  assert_contains "$popup_path" "exploration-architecture.md"
+
+  # Test unknown target fails
+  set +e
+  bash "$ROOT_DIR/scripts/studio-popup.sh" resolve "$session_dir" "nonexistent-target" >/dev/null 2>&1
+  local status=$?
+  set -e
+  [ "$status" -ne 0 ] || fail "popup resolve should fail for unknown target"
+
+  trap - RETURN
+  rm -rf "$tmp_root"
+}
+
 run_destructive_guard_tests
 run_recovery_tests
 run_worktree_tests
@@ -616,5 +1015,10 @@ run_validation_tests
 run_studio_dependency_tests
 run_studio_runtime_tests
 run_metadata_tests
+run_extended_destructive_guard_tests
+run_schema_validation_tests
+run_common_library_tests
+run_phase_gate_negative_tests
+run_popup_resolve_tests
 
 echo "All tests passed."
